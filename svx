@@ -337,9 +337,9 @@ action_edit_env() {
 
 action_alsamixer() {
     local usb_card
-    usb_card=$(grep -l "USB Audio" /proc/asound/card*/id 2>/dev/null | head -1 | grep -o 'card[0-9]*') || true
+    usb_card=$(grep -m1 'USB-Audio' /proc/asound/cards 2>/dev/null | awk '{print $1}') || true
     if [[ -n "$usb_card" ]]; then
-        local card_num="${usb_card#card}"
+        local card_num="$usb_card"
         alsamixer -c "$card_num" || true
     else
         alsamixer || true
