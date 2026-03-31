@@ -2,6 +2,9 @@
 # svx-lib — Shared library for Svx Admin TUI
 # Source this file; do not execute directly.
 
+[[ -n "${_SVX_LIB_LOADED:-}" ]] && return 0
+readonly _SVX_LIB_LOADED=1
+
 readonly SVX_VERSION="2.0.0"
 readonly SVX_NAME="Svx Admin"
 
@@ -62,8 +65,8 @@ TERM_ROWS=0
 TERM_COLS=0
 
 get_term_size() {
-    TERM_ROWS=$(tput lines)
-    TERM_COLS=$(tput cols)
+    TERM_ROWS=$(tput lines 2>/dev/null || echo 24)
+    TERM_COLS=$(tput cols 2>/dev/null || echo 80)
 }
 
 enter_tui() {
@@ -78,10 +81,10 @@ enter_tui() {
 }
 
 exit_tui() {
-    printf '%b' "\e[?7h" # Re-enable line wrap
-    tput cnorm           # Show cursor
-    tput rmcup           # Restore screen
-    stty echo icanon     # Normal mode
+    printf '%b' "\e[?7h"  # Re-enable line wrap
+    stty echo icanon       # Restore before leaving alt screen
+    tput cnorm             # Show cursor
+    tput rmcup             # Restore screen (last)
 }
 
 NEEDS_REDRAW=1
@@ -98,6 +101,7 @@ READ_KEY_RESULT=""
 
 read_key() {
     local timeout="${1:-3}"
+    local _discard
     READ_KEY_RESULT=""
     local c
     if ! IFS= read -rsn1 -t "$timeout" c; then
@@ -113,8 +117,8 @@ read_key() {
             '[C') READ_KEY_RESULT="right" ;;
             '[D') READ_KEY_RESULT="left" ;;
             '[Z') READ_KEY_RESULT="shift_tab" ;;
-            '[5') IFS= read -rsn1 -t 0.1 _ || true; READ_KEY_RESULT="pgup" ;;
-            '[6') IFS= read -rsn1 -t 0.1 _ || true; READ_KEY_RESULT="pgdn" ;;
+            '[5') IFS= read -rsn1 -t 0.1 _discard || true; READ_KEY_RESULT="pgup" ;;
+            '[6') IFS= read -rsn1 -t 0.1 _discard || true; READ_KEY_RESULT="pgdn" ;;
             '[H') READ_KEY_RESULT="home" ;;
             '[F') READ_KEY_RESULT="end" ;;
             *)    READ_KEY_RESULT="esc" ;;
