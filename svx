@@ -287,13 +287,11 @@ action_logs() {
     clear
     echo "=== Following logs for ${SERVICE_LABELS[$svc]} (Ctrl+C to return) ==="
     echo ""
-    trap '' INT
     if [[ "$source" == "journald" ]]; then
-        journalctl -u "${svc}.service" -f 2>/dev/null || true
+        journalctl -u "${svc}.service" -f || true
     else
-        tail -f "$logfile" 2>/dev/null || true
+        tail -f "$logfile" || true
     fi
-    trap - INT
 }
 
 # =============================================================================
