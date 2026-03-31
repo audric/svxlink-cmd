@@ -382,6 +382,7 @@ pick_service() {
     local box_col=$(( (TERM_COLS - box_w) / 2 ))
 
     while true; do
+        clear_region "$box_row" "$box_col" "$box_w" "$box_h"
         draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$prompt"
 
         local i
@@ -416,20 +417,32 @@ pick_service() {
 # --- Result message overlay ---
 show_message() {
     local title="$1" msg="$2"
-    local box_w=50 box_h=8
+
+    # Count lines to auto-size the box
+    local msg_lines=()
+    while IFS= read -r line; do
+        msg_lines+=("$line")
+    done <<< "$msg"
+    local n_lines=${#msg_lines[@]}
+
+    local box_w=55
+    local box_h=$(( n_lines + 5 ))  # +2 top/bottom border, +1 title gap, +1 footer, +1 padding
+    # Clamp to terminal size
+    (( box_h > TERM_ROWS - 2 )) && box_h=$((TERM_ROWS - 2))
     local box_row=$(( (TERM_ROWS - box_h) / 2 ))
     local box_col=$(( (TERM_COLS - box_w) / 2 ))
 
+    clear_region "$box_row" "$box_col" "$box_w" "$box_h"
     draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$title"
 
     local inner_w=$((box_w - 4))
     local r=$((box_row + 2))
-    local line
-    while IFS= read -r line; do
-        draw_text_trunc "$r" "$((box_col + 2))" "$inner_w" "$line"
-        (( r++ ))
+    local i
+    for (( i = 0; i < ${#msg_lines[@]}; i++ )); do
         (( r >= box_row + box_h - 2 )) && break
-    done <<< "$msg"
+        draw_text_trunc "$r" "$((box_col + 2))" "$inner_w" "${msg_lines[$i]}"
+        (( r++ ))
+    done
 
     move_to "$((box_row + box_h - 2))" "$((box_col + 2))"
     printf '%b%s%b' "$C_DIM" "Press any key..." "$C_RESET"
