@@ -336,7 +336,14 @@ action_edit_env() {
 # =============================================================================
 
 action_alsamixer() {
-    alsamixer
+    local usb_card
+    usb_card=$(grep -l "USB Audio" /proc/asound/card*/id 2>/dev/null | head -1 | grep -o 'card[0-9]*') || true
+    if [[ -n "$usb_card" ]]; then
+        local card_num="${usb_card#card}"
+        alsamixer -c "$card_num" || true
+    else
+        alsamixer || true
+    fi
 }
 
 action_gpio_restart() {
