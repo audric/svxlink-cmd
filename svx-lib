@@ -63,6 +63,7 @@ EDITOR="${EDITOR:-$(command -v nano || command -v vi || echo "vi")}"
 # --- Terminal state ---
 TERM_ROWS=0
 TERM_COLS=0
+SAVED_STTY=""
 
 get_term_size() {
     TERM_ROWS=$(tput lines 2>/dev/null || echo 24)
@@ -72,6 +73,7 @@ get_term_size() {
 enter_tui() {
     tput smcup          # Alternate screen buffer
     tput civis          # Hide cursor
+    SAVED_STTY=$(stty -g 2>/dev/null || true)
     stty -echo -icanon  # Raw mode
     printf '%b' "\e[?7l" # Disable line wrap
     clear
@@ -82,7 +84,7 @@ enter_tui() {
 
 exit_tui() {
     printf '%b' "\e[?7h"  # Re-enable line wrap
-    stty echo icanon       # Restore before leaving alt screen
+    [[ -n "$SAVED_STTY" ]] && stty "$SAVED_STTY" 2>/dev/null || stty echo icanon
     tput cnorm             # Show cursor
     tput rmcup             # Restore screen (last)
 }
@@ -220,6 +222,8 @@ clear_region() {
 
 draw_bar() {
     local row=$1 col=$2 w=$3 pct=$4
+    (( pct > 100 )) && pct=100
+    (( pct < 0 )) && pct=0
     local bar_w=$((w - 5))
     if (( bar_w < 3 )); then bar_w=3; fi
     local filled=$(( (pct * bar_w + 50) / 100 ))
@@ -391,7 +395,7 @@ pick_service() {
             fi
         done
 
-        read_key 0
+        read_key 300
         case "$READ_KEY_RESULT" in
             up)    (( sel > 0 )) && (( sel-- )) ;;
             down)  (( sel < count - 1 )) && (( sel++ )) ;;
@@ -421,7 +425,7 @@ show_message() {
 
     move_to "$((box_row + box_h - 2))" "$((box_col + 2))"
     printf '%b%s%b' "$C_DIM" "Press any key..." "$C_RESET"
-    read_key 0
+    read_key 300
 }
 
 # --- Service control actions ---
@@ -557,11 +561,11 @@ action_check_logrotate() {
 
 action_health_check() {
     local report=""
-    report+="DISK USAGE\n"
-    report+="$(df -h --output=target,size,used,avail,pcent / /boot 2>/dev/null | head -5)\n"
-    report+="\nTOP 5 PROCESSES (CPU)\n"
-    report+="$(ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu | head -6)\n"
-    report+="\nLOG ROTATION\n"
+    report+="DISK USAGE"$'\n'
+    report+="$(df -h --output=target,size,used,avail,pcent / /boot 2>/dev/null | head -5)"$'\n'
+    report+=$'\n'"TOP 5 PROCESSES (CPU)"$'\n'
+    report+="$(ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu | head -6)"$'\n'
+    report+=$'\n'"LOG ROTATION"$'\n'
     if [[ -f "$LOGROTATE_CONF" ]]; then
         report+="OK: ${LOGROTATE_CONF} exists"
     else

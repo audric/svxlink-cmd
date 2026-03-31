@@ -25,7 +25,7 @@ draw_title_bar() {
     printf ' %b──%b ' "$C_ACCENT" "$C_ACCENT"
     printf '%b%s%b' "$C_DIM" "$SYS_IP" "$C_ACCENT"
     local used=0
-    used=$(( ${#SVX_NAME} + ${#SVX_VERSION} + ${#SYS_HOST} + ${#SYS_IP} + 16 ))
+    used=$(( ${#SVX_NAME} + ${#SVX_VERSION} + ${#SYS_HOST} + ${#SYS_IP} + 14 ))
     local fill=$((TERM_COLS - used - 1))
     (( fill > 0 )) && printf '%*s' "$fill" '' | tr ' ' "$BOX_H"
     printf '%s%b' "$BOX_TR" "$C_RESET"
@@ -247,14 +247,6 @@ draw_log_panel() {
         printf '%b%s%b' "$C_ACCENT" "$BOX_V" "$C_RESET"
         (( r++ ))
     done
-
-    local j
-    for (( j = LOG_TOP; j < LOG_TOP + LOG_H; j++ )); do
-        move_to "$j" 0
-        printf '%b%s%b' "$C_ACCENT" "$BOX_V" "$C_RESET"
-        move_to "$j" "$((TERM_COLS - 1))"
-        printf '%b%s%b' "$C_ACCENT" "$BOX_V" "$C_RESET"
-    done
 }
 
 # --- Hotkey bar ---
@@ -348,7 +340,7 @@ check_min_size() {
         clear
         move_to "$((TERM_ROWS / 2))" "$(( (TERM_COLS - 30) / 2 ))"
         printf '%bTerminal too small (need 80x24)%b' "$C_WARN" "$C_RESET"
-        read_key 0
+        read_key 300
         return 1
     fi
     return 0
@@ -367,7 +359,9 @@ while true; do
             refresh_all_data
             draw_sysinfo_bar
             draw_services_panel
+            draw_top_panel
             draw_audio_panel
+            draw_disk_panel
             draw_log_panel
         fi
     fi

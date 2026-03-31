@@ -30,7 +30,7 @@ draw_title_bar() {
     printf '%b%s%b' "$C_WHITE" "$SYS_HOST" "$C_ACCENT"
     printf ' %b──%b ' "$C_ACCENT" "$C_ACCENT"
     printf '%b%s%b' "$C_DIM" "$SYS_IP" "$C_ACCENT"
-    local used=$(( ${#SVX_NAME} + ${#SVX_VERSION} + ${#SYS_HOST} + ${#SYS_IP} + 16 ))
+    local used=$(( ${#SVX_NAME} + ${#SVX_VERSION} + ${#SYS_HOST} + ${#SYS_IP} + 14 ))
     local fill=$((TERM_COLS - used - 1))
     (( fill > 0 )) && printf '%*s' "$fill" '' | tr ' ' "$BOX_H"
     printf '%s%b' "$BOX_TR" "$C_RESET"
@@ -300,7 +300,7 @@ draw_tab_config() {
 }
 
 # --- Tab 3: Maintenance ---
-MAINT_ITEMS=("Log rotation check" "GPIO restart" "Enable service at boot" "Disable service at boot")
+MAINT_ITEMS=("Log rotation check" "Health check" "GPIO restart" "Enable service at boot" "Disable service at boot")
 
 draw_tab_maintenance() {
     local r=$CONTENT_TOP
@@ -337,7 +337,7 @@ draw_hotkey_bar() {
 
     case $CURRENT_TAB in
         0)
-            printf 's%b[T]%bart ' "$C_ACCENT_BOLD" "$C_RESET"
+            printf '%b[T]%bart ' "$C_ACCENT_BOLD" "$C_RESET"
             printf '%b[S]%btop ' "$C_ACCENT_BOLD" "$C_RESET"
             printf '%b[R]%bestart ' "$C_ACCENT_BOLD" "$C_RESET"
             printf 're%b[L]%boad ' "$C_ACCENT_BOLD" "$C_RESET"
@@ -448,20 +448,21 @@ handle_key() {
                 3)
                     case $MAINT_SEL in
                         0) action_check_logrotate ;;
-                        1) action_gpio_restart ;;
-                        2) action_enable ;;
-                        3) action_disable ;;
+                        1) action_health_check ;;
+                        2) action_gpio_restart ;;
+                        3) action_enable ;;
+                        4) action_disable ;;
                     esac
                     NEEDS_REDRAW=1
                     ;;
             esac
             ;;
 
-        t) (( CURRENT_TAB == 0 )) && action_start && NEEDS_REDRAW=1 ;;
-        s) (( CURRENT_TAB == 0 )) && action_stop && NEEDS_REDRAW=1 ;;
-        r) (( CURRENT_TAB == 0 )) && action_restart && NEEDS_REDRAW=1 ;;
-        l) (( CURRENT_TAB == 0 )) && action_reload && NEEDS_REDRAW=1 ;;
-        a) (( CURRENT_TAB == 0 )) && action_alsamixer ;;
+        t) (( CURRENT_TAB == 0 )) && { action_start; NEEDS_REDRAW=1; } ;;
+        s) (( CURRENT_TAB == 0 )) && { action_stop; NEEDS_REDRAW=1; } ;;
+        r) (( CURRENT_TAB == 0 )) && { action_restart; NEEDS_REDRAW=1; } ;;
+        l) (( CURRENT_TAB == 0 )) && { action_reload; NEEDS_REDRAW=1; } ;;
+        a) (( CURRENT_TAB == 0 )) && { action_alsamixer; NEEDS_REDRAW=1; } ;;
 
         q|Q) exit_tui; echo "Goodbye!"; exit 0 ;;
     esac
@@ -473,7 +474,7 @@ check_min_size() {
         clear
         move_to "$((TERM_ROWS / 2))" "$(( (TERM_COLS - 30) / 2 ))"
         printf '%bTerminal too small (need 80x24)%b' "$C_WARN" "$C_RESET"
-        read_key 0
+        read_key 300
         return 1
     fi
     return 0
