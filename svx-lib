@@ -233,3 +233,125 @@ draw_bar() {
     for (( i = 0; i < empty; i++ )); do printf '░'; done
     printf '%b %3d%%%b' "$C_WHITE" "$pct" "$C_RESET"
 }
+
+# --- USB Audio Card ---
+USB_CARD=""
+
+detect_usb_card() {
+    USB_CARD=""
+    if [[ -f /proc/asound/cards ]]; then
+        USB_CARD=$(awk '/USB-Audio/{print $1; exit}' /proc/asound/cards)
+    fi
+}
+
+# --- Audio levels ---
+AUDIO_MIC=""       # percentage (integer) or ""
+AUDIO_SPKR=""      # percentage (integer) or ""
+AUDIO_AGC=""       # "on", "off", or ""
+
+collect_audio() {
+    AUDIO_MIC="" AUDIO_SPKR="" AUDIO_AGC=""
+    [[ -n "$USB_CARD" ]] || return
+
+    AUDIO_SPKR=$(amixer -c "$USB_CARD" get Speaker 2>/dev/null \
+        | awk -F'[][]' '/Playback [0-9]/{gsub(/%/,"",$2); print $2; exit}')
+    AUDIO_MIC=$(amixer -c "$USB_CARD" get Mic 2>/dev/null \
+        | awk -F'[][]' '/Capture [0-9]/{gsub(/%/,"",$2); print $2; exit}')
+
+    if amixer -c "$USB_CARD" scontrols 2>/dev/null | grep -q 'Auto Gain Control'; then
+        AUDIO_AGC=$(amixer -c "$USB_CARD" get 'Auto Gain Control' 2>/dev/null \
+            | awk -F'[][]' '/Capture \[/{print $2; exit}')
+    fi
+}
+
+# --- Service status ---
+declare -A SVC_STATUS=()
+
+collect_services() {
+    local svc
+    for svc in "${SERVICES[@]}"; do
+        SVC_STATUS[$svc]=$(systemctl is-active "${svc}.service" 2>/dev/null || echo "inactive")
+    done
+}
+
+# --- System info ---
+SYS_TEMP="" SYS_LOAD="" SYS_UPTIME="" SYS_HOST="" SYS_IP=""
+
+collect_sysinfo() {
+    local temp_file="/sys/class/thermal/thermal_zone0/temp"
+    if [[ -r "$temp_file" ]]; then
+        local raw
+        raw=$(<"$temp_file")
+        SYS_TEMP="$(( raw / 1000 ))"
+    else
+        SYS_TEMP=""
+    fi
+
+    SYS_LOAD=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo "")
+    SYS_UPTIME=$(uptime -p 2>/dev/null | sed 's/up //;s/ days\?/d/;s/ hours\?/h/;s/ minutes\?/m/;s/,//g' || echo "")
+    SYS_HOST=$(hostname -s 2>/dev/null || echo "unknown")
+    SYS_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "")
+}
+
+# --- Disk usage ---
+DISK_LINES=()
+
+collect_disk() {
+    DISK_LINES=()
+    local line
+    while IFS= read -r line; do
+        DISK_LINES+=("$line")
+    done < <(df -h --output=target,size,used,avail,pcent / /boot 2>/dev/null \
+        | tail -n +2 \
+        | awk '{gsub(/%/,"",$5); print $1, $2, $3, $4, $5}')
+}
+
+# --- USB mounts ---
+USB_LINES=()
+
+collect_usb_mounts() {
+    USB_LINES=()
+    local line
+    while IFS= read -r line; do
+        USB_LINES+=("$line")
+    done < <(df -h --output=target,size,used,avail,pcent 2>/dev/null \
+        | tail -n +2 \
+        | awk '$1 ~ /^\/media\/|^\/mnt\// {gsub(/%/,"",$5); print $1, $2, $3, $4, $5}')
+}
+
+# --- Top processes ---
+TOP_LINES=()
+
+collect_top() {
+    TOP_LINES=()
+    local line
+    while IFS= read -r line; do
+        TOP_LINES+=("$line")
+    done < <(ps -eo comm,%cpu,%mem --sort=-%cpu --no-headers 2>/dev/null \
+        | head -5 \
+        | awk '{printf "%s %s %s\n", $1, $2, $3}')
+}
+
+# --- Logs ---
+LOG_SERVICE="svxlink"
+LOG_LINES=()
+
+collect_logs() {
+    LOG_LINES=()
+    local max_lines="${1:-15}"
+    local line
+    while IFS= read -r line; do
+        LOG_LINES+=("$line")
+    done < <(journalctl -u "${LOG_SERVICE}.service" --no-pager -n "$max_lines" \
+        --output=short-iso 2>/dev/null)
+}
+
+# --- Refresh all data ---
+refresh_all_data() {
+    collect_services
+    collect_sysinfo
+    collect_disk
+    collect_usb_mounts
+    collect_top
+    collect_audio
+}
