@@ -9,7 +9,8 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 - Edit configuration, GPIO, and environment files
 - Enable / Disable services at boot
 - GPIO setup restart
-- Alsamixer integration
+- Alsamixer integration (auto-detects USB audio device)
+- Log rotation check and auto-fix
 - Live system info: service status, CPU temperature, uptime, last boot
 
 ## Services managed
@@ -57,10 +58,12 @@ sudo svx
 │ │  9  Edit environment defaults         │ │
 │ │  ─  ─── Audio ──────────────          │ │
 │ │ 10  Alsamixer                         │ │
+│ │  ─  ─── Maintenance ────────          │ │
+│ │ 11  Check log rotation                │ │
 │ │  ─  ─── Boot & GPIO ────────          │ │
-│ │ 11  Enable service at boot            │ │
-│ │ 12  Disable service at boot           │ │
-│ │ 13  Restart GPIO setup                │ │
+│ │ 12  Enable service at boot            │ │
+│ │ 13  Disable service at boot           │ │
+│ │ 14  Restart GPIO setup                │ │
 │ └───────────────────────────────────────┘ │
 │          <OK>          <Quit>             │
 └───────────────────────────────────────────┘
