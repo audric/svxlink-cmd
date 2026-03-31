@@ -403,9 +403,10 @@ pick_service() {
                 local sc="$C_DIM"
                 [[ "$status" == "active" ]] && sc="$C_OK"
                 [[ "$status" == "failed" ]] && sc="$C_ERR"
-                printf '%-*s' "$inner_w" ""
-                move_to "$r" "$c"
-                printf ' %-14s %b%-8s%b' "$label" "$sc" "$status" "$C_RESET"
+                # Print padded blank first at the correct position, then overwrite with colored text
+                printf '%-*s' "$inner_w" "$entry"
+                move_to "$r" "$((c + 16))"
+                printf '%b%s%b' "$sc" "$status" "$C_RESET"
             fi
         done
 
