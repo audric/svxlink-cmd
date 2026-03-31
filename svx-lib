@@ -383,7 +383,7 @@ pick_service() {
     local inner_w=$((box_w - 4))
 
     while true; do
-        clear_region "$box_row" "$box_col" "$box_w" "$box_h"
+        clear_region "$box_row" 0 "$TERM_COLS" "$box_h"
         draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$prompt"
 
         local i
@@ -437,7 +437,7 @@ show_message() {
     local box_row=$(( (TERM_ROWS - box_h) / 2 ))
     local box_col=$(( (TERM_COLS - box_w) / 2 ))
 
-    clear_region "$box_row" "$box_col" "$box_w" "$box_h"
+    clear_region "$box_row" 0 "$TERM_COLS" "$box_h"
     draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$title"
 
     local inner_w=$((box_w - 4))
