@@ -377,9 +377,10 @@ pick_service() {
     local sel=0
     local count=${#SERVICES[@]}
 
-    local box_w=35 box_h=$((count + 4))
+    local box_w=38 box_h=$((count + 4))
     local box_row=$(( (TERM_ROWS - box_h) / 2 ))
     local box_col=$(( (TERM_COLS - box_w) / 2 ))
+    local inner_w=$((box_w - 4))
 
     while true; do
         clear_region "$box_row" "$box_col" "$box_w" "$box_h"
@@ -392,15 +393,19 @@ pick_service() {
             local status="${SVC_STATUS[$svc]:-unknown}"
             local r=$((box_row + 2 + i))
             local c=$((box_col + 2))
+            local entry
+            entry=$(printf ' %-14s %s' "$label" "$status")
 
             move_to "$r" "$c"
             if (( i == sel )); then
-                printf '%b %-16s %s %b' "$C_BOLD$C_ACCENT" "$label" "$status" "$C_RESET"
+                printf '%b%-*s%b' "$C_BOLD$C_ACCENT" "$inner_w" "$entry" "$C_RESET"
             else
                 local sc="$C_DIM"
                 [[ "$status" == "active" ]] && sc="$C_OK"
                 [[ "$status" == "failed" ]] && sc="$C_ERR"
-                printf ' %-16s %b%s%b' "$label" "$sc" "$status" "$C_RESET"
+                printf '%-*s' "$inner_w" ""
+                move_to "$r" "$c"
+                printf ' %-14s %b%-8s%b' "$label" "$sc" "$status" "$C_RESET"
             fi
         done
 
