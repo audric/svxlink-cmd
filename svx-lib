@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# svx-lib — Shared library for Svx Admin TUI
+# Source this file; do not execute directly.
+
+readonly SVX_VERSION="2.0.0"
+readonly SVX_NAME="Svx Admin"
+
+# --- Colors (ANSI) ---
+C_RESET=$'\e[0m'
+C_BOLD=$'\e[1m'
+C_DIM=$'\e[90m'
+C_ACCENT=$'\e[36m'        # Cyan
+C_ACCENT_BOLD=$'\e[1;36m' # Bold cyan
+C_OK=$'\e[32m'             # Green
+C_ERR=$'\e[31m'            # Red
+C_WARN=$'\e[33m'           # Yellow
+C_BAR=$'\e[36m'            # Cyan fill
+C_BAR_BG=$'\e[90m'         # Dark gray empty
+C_WHITE=$'\e[97m'          # Bright white
+C_BG=$'\e[40m'             # Black background
+
+# --- Box-drawing characters ---
+BOX_TL='┌' BOX_TR='┐' BOX_BL='└' BOX_BR='┘'
+BOX_H='─' BOX_V='│'
+BOX_LT='├' BOX_RT='┤' BOX_TT='┬' BOX_BT='┴' BOX_CROSS='┼'
+
+# --- Service maps ---
+readonly SERVICES=("svxlink" "remotetrx" "svxreflector")
+
+declare -A SERVICE_LABELS=(
+    [svxlink]="SvxLink"
+    [remotetrx]="RemoteTRX"
+    [svxreflector]="SvxReflector"
+)
+
+declare -A CONFIG_FILES=(
+    [svxlink]="/etc/svxlink/svxlink.conf"
+    [remotetrx]="/etc/svxlink/remotetrx.conf"
+    [svxreflector]="/etc/svxlink/svxreflector.conf"
+)
+
+declare -A ENV_FILES=(
+    [svxlink]="/etc/default/svxlink"
+    [remotetrx]="/etc/default/remotetrx"
+    [svxreflector]="/etc/default/svxreflector"
+)
+
+declare -A LOG_FILES=(
+    [svxlink]="/var/log/svxlink"
+    [remotetrx]="/var/log/remotetrx"
+    [svxreflector]="/var/log/svxreflector"
+)
+
+readonly GPIO_CONF="/etc/svxlink/gpio.conf"
+readonly LOGROTATE_CONF="/etc/logrotate.d/svxlink"
+
+# --- Editor detection ---
+EDITOR="${EDITOR:-$(command -v nano || command -v vi || echo "vi")}"
+
+# --- Terminal state ---
+TERM_ROWS=0
+TERM_COLS=0
+
+get_term_size() {
+    TERM_ROWS=$(tput lines)
+    TERM_COLS=$(tput cols)
+}
+
+enter_tui() {
+    tput smcup          # Alternate screen buffer
+    tput civis          # Hide cursor
+    stty -echo -icanon  # Raw mode
+    printf '%b' "\e[?7l" # Disable line wrap
+    clear
+    get_term_size
+    trap 'handle_resize' WINCH
+    trap 'exit_tui; exit 0' INT TERM
+}
+
+exit_tui() {
+    printf '%b' "\e[?7h" # Re-enable line wrap
+    tput cnorm           # Show cursor
+    tput rmcup           # Restore screen
+    stty echo icanon     # Normal mode
+}
+
+NEEDS_REDRAW=1
+
+handle_resize() {
+    get_term_size
+    NEEDS_REDRAW=1
+}
+
+# --- Input handling ---
+# Reads one keypress. Returns normalized key name in READ_KEY_RESULT.
+# Times out after $1 seconds (default 3), returns "timeout".
+READ_KEY_RESULT=""
+
+read_key() {
+    local timeout="${1:-3}"
+    READ_KEY_RESULT=""
+    local c
+    if ! IFS= read -rsn1 -t "$timeout" c; then
+        READ_KEY_RESULT="timeout"
+        return
+    fi
+    if [[ "$c" == $'\e' ]]; then
+        local seq
+        IFS= read -rsn2 -t 0.1 seq || true
+        case "$seq" in
+            '[A') READ_KEY_RESULT="up" ;;
+            '[B') READ_KEY_RESULT="down" ;;
+            '[C') READ_KEY_RESULT="right" ;;
+            '[D') READ_KEY_RESULT="left" ;;
+            '[Z') READ_KEY_RESULT="shift_tab" ;;
+            '[5') IFS= read -rsn1 -t 0.1 _ || true; READ_KEY_RESULT="pgup" ;;
+            '[6') IFS= read -rsn1 -t 0.1 _ || true; READ_KEY_RESULT="pgdn" ;;
+            '[H') READ_KEY_RESULT="home" ;;
+            '[F') READ_KEY_RESULT="end" ;;
+            *)    READ_KEY_RESULT="esc" ;;
+        esac
+    elif [[ "$c" == $'\t' ]]; then
+        READ_KEY_RESULT="tab"
+    elif [[ "$c" == "" ]]; then
+        READ_KEY_RESULT="enter"
+    elif [[ "$c" == $'\x7f' ]] || [[ "$c" == $'\b' ]]; then
+        READ_KEY_RESULT="backspace"
+    else
+        READ_KEY_RESULT="$c"
+    fi
+}
