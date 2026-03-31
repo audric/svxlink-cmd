@@ -399,6 +399,27 @@ action_check_logrotate() {
     fi
 }
 
+action_health_check() {
+    local report=""
+
+    # Disk usage
+    report+="DISK USAGE\n"
+    report+="$(df -h --output=target,size,used,avail,pcent / /boot 2>/dev/null | head -5)\n"
+    report+="\n"
+
+    # Top 10 CPU consuming processes
+    report+="TOP 10 PROCESSES (CPU)\n"
+    report+="$(ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu | head -11)\n"
+
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " System Health " \
+            --msgbox "$report" 28 70
+    else
+        whiptail --title " System Health " \
+            --msgbox "$report" 28 70
+    fi
+}
+
 action_gpio_restart() {
     local output
     output=$(systemctl restart svxlink_gpio_setup.service 2>&1) && \
@@ -424,18 +445,19 @@ main_menu() {
         "─1" "$(printf "%-${W}s" "─── Monitoring ─────────")"
         "5"  "$(printf "%-${W}s" "Show detailed status")"
         "6"  "$(printf "%-${W}s" "Follow live logs")"
+        "7"  "$(printf "%-${W}s" "System health check")"
         "─2" "$(printf "%-${W}s" "─── Configuration ──────")"
-        "7"  "$(printf "%-${W}s" "Edit config file")"
-        "8"  "$(printf "%-${W}s" "Edit GPIO config")"
-        "9"  "$(printf "%-${W}s" "Edit environment defaults")"
+        "8"  "$(printf "%-${W}s" "Edit config file")"
+        "9"  "$(printf "%-${W}s" "Edit GPIO config")"
+        "10" "$(printf "%-${W}s" "Edit environment defaults")"
         "─3" "$(printf "%-${W}s" "─── Audio ──────────────")"
-        "10" "$(printf "%-${W}s" "Alsamixer")"
+        "11" "$(printf "%-${W}s" "Alsamixer")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
-        "11" "$(printf "%-${W}s" "Check log rotation")"
+        "12" "$(printf "%-${W}s" "Check log rotation")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "12" "$(printf "%-${W}s" "Enable service at boot")"
-        "13" "$(printf "%-${W}s" "Disable service at boot")"
-        "14" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "13" "$(printf "%-${W}s" "Enable service at boot")"
+        "14" "$(printf "%-${W}s" "Disable service at boot")"
+        "15" "$(printf "%-${W}s" "Restart GPIO setup")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -443,14 +465,14 @@ main_menu() {
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-label "Quit" \
-            --menu "\nChoose an action:\n" 28 50 18 \
+            --menu "\nChoose an action:\n" 30 50 20 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     else
         whiptail \
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-button "Quit" \
-            --menu "\nChoose an action:\n" 28 50 18 \
+            --menu "\nChoose an action:\n" 30 50 20 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     fi
 }
@@ -470,14 +492,15 @@ while true; do
         4)  action_reload ;;
         5)  action_status ;;
         6)  action_logs ;;
-        7)  action_edit_config ;;
-        8)  action_edit_gpio ;;
-        9)  action_edit_env ;;
-        10) action_alsamixer ;;
-        11) action_check_logrotate ;;
-        12) action_enable ;;
-        13) action_disable ;;
-        14) action_gpio_restart ;;
+        7)  action_health_check ;;
+        8)  action_edit_config ;;
+        9)  action_edit_gpio ;;
+        10) action_edit_env ;;
+        11) action_alsamixer ;;
+        12) action_check_logrotate ;;
+        13) action_enable ;;
+        14) action_disable ;;
+        15) action_gpio_restart ;;
         *)  ;; # separator selected, ignore
     esac
 done
