@@ -32,7 +32,7 @@ draw_title_bar() {
     printf '%b%s%b' "$C_DIM" "$SYS_IP" "$C_ACCENT"
     local used=$(( ${#SVX_NAME} + ${#SVX_VERSION} + ${#SYS_HOST} + ${#SYS_IP} + 14 ))
     local fill=$((TERM_COLS - used - 1))
-    (( fill > 0 )) && printf '%*s' "$fill" '' | tr ' ' "$BOX_H"
+    (( fill > 0 )) && repeat_char "$BOX_H" "$fill"
     printf '%s%b' "$BOX_TR" "$C_RESET"
 }
 
@@ -361,7 +361,7 @@ draw_hotkey_bar() {
 
     move_to "$((TERM_ROWS - 1))" 0
     printf '%b%s' "$C_ACCENT" "$BOX_BL"
-    printf '%*s' "$((TERM_COLS - 2))" '' | tr ' ' "$BOX_H"
+    repeat_char "$BOX_H" "$((TERM_COLS - 2))"
     printf '%s%b' "$BOX_BR" "$C_RESET"
 }
 

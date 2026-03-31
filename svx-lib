@@ -138,6 +138,14 @@ read_key() {
 
 # --- Drawing primitives ---
 
+# Repeat a (possibly multi-byte) character N times.
+# Usage: repeat_char CHAR COUNT
+# tr can't handle multi-byte UTF-8, so we use a loop.
+repeat_char() {
+    local ch="$1" n="$2" i
+    for (( i = 0; i < n; i++ )); do printf '%s' "$ch"; done
+}
+
 move_to() {
     printf '\e[%d;%dH' "$(($1 + 1))" "$(($2 + 1))"
 }
@@ -171,9 +179,9 @@ draw_box() {
         printf '%b%s%b' "$C_ACCENT_BOLD" "$title" "$C_ACCENT"
         local title_len=$(( ${#title} + 3 ))
         local fill=$((inner_w - title_len))
-        printf ' %s' "$(printf '%*s' "$fill" '' | tr ' ' "$BOX_H")"
+        printf ' %s' "$(repeat_char "$BOX_H" "$fill")"
     else
-        printf '%s' "$(printf '%*s' "$inner_w" '' | tr ' ' "$BOX_H")"
+        printf '%s' "$(repeat_char "$BOX_H" "$inner_w")"
     fi
     printf '%s%b' "$BOX_TR" "$C_RESET"
 
@@ -187,7 +195,7 @@ draw_box() {
 
     move_to "$((row + h - 1))" "$col"
     printf '%b%s%s%s%b' "$C_ACCENT" "$BOX_BL" \
-        "$(printf '%*s' "$inner_w" '' | tr ' ' "$BOX_H")" \
+        "$(repeat_char "$BOX_H" "$inner_w")" \
         "$BOX_BR" "$C_RESET"
 }
 
@@ -196,7 +204,7 @@ draw_hline() {
     local inner_w=$((w - 2))
     move_to "$row" "$col"
     printf '%b%s%s%s%b' "$C_ACCENT" "$BOX_LT" \
-        "$(printf '%*s' "$inner_w" '' | tr ' ' "$BOX_H")" \
+        "$(repeat_char "$BOX_H" "$inner_w")" \
         "$BOX_RT" "$C_RESET"
 }
 
