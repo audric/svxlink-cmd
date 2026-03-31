@@ -336,13 +336,66 @@ action_edit_env() {
 # =============================================================================
 
 action_alsamixer() {
-    local usb_card
-    usb_card=$(grep -m1 'USB-Audio' /proc/asound/cards 2>/dev/null | awk '{print $1}') || true
+    local usb_card=""
+    if [[ -f /proc/asound/cards ]]; then
+        usb_card=$(awk '/USB-Audio/{print $1; exit}' /proc/asound/cards)
+    fi
     if [[ -n "$usb_card" ]]; then
-        local card_num="$usb_card"
-        alsamixer -c "$card_num" || true
+        alsamixer -c "$usb_card" || true
     else
         alsamixer || true
+    fi
+}
+
+readonly LOGROTATE_CONF="/etc/logrotate.d/svxlink"
+readonly LOGROTATE_CONTENT="/var/log/svxlink
+/var/log/remotetrx
+/var/log/svxreflector
+{
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}"
+
+action_check_logrotate() {
+    # Check if any file-based logs exist
+    local has_logs=false
+    for svc in "${SERVICES[@]}"; do
+        [[ -f "${LOG_FILES[$svc]}" ]] && has_logs=true && break
+    done
+
+    if [[ "$has_logs" == false ]]; then
+        show_result "No File Logs" "No SvxLink file-based logs found.\n\nServices are logging to journald only.\nNo log rotation needed."
+        return
+    fi
+
+    # File logs exist — check logrotate
+    if ! command -v logrotate &>/dev/null; then
+        show_result "Warning" "SvxLink is writing to log files but\nlogrotate is not installed.\n\nInstall it with:\n  apt install logrotate\n\nThen run this check again."
+        return
+    fi
+
+    if [[ -f "$LOGROTATE_CONF" ]]; then
+        local content
+        content=$(<"$LOGROTATE_CONF")
+        show_result "Log Rotation OK" "Config: ${LOGROTATE_CONF}\n\n${content}"
+    else
+        if [[ "$DIALOG" == "dialog" ]]; then
+            dialog --colors --no-shadow --title " Log Rotation Missing " \
+                --yesno "\nSvxLink is writing to log files but no\nlogrotate config was found.\n\nCreate ${LOGROTATE_CONF}?\n\nWeekly rotation, 4 copies, compressed.\n" 15 55 2>"$DIALOG_OUT"
+        else
+            whiptail --title " Log Rotation Missing " \
+                --yesno "\nSvxLink is writing to log files but no\nlogrotate config was found.\n\nCreate ${LOGROTATE_CONF}?\n\nWeekly rotation, 4 copies, compressed.\n" 15 55 2>"$DIALOG_OUT"
+        fi
+        if [[ $? -eq 0 ]]; then
+            echo "$LOGROTATE_CONTENT" > "$LOGROTATE_CONF"
+            chmod 644 "$LOGROTATE_CONF"
+            show_result "Success" "Created ${LOGROTATE_CONF}\n\nLog rotation is now active."
+        fi
     fi
 }
 
@@ -377,10 +430,12 @@ main_menu() {
         "9"  "$(printf "%-${W}s" "Edit environment defaults")"
         "─3" "$(printf "%-${W}s" "─── Audio ──────────────")"
         "10" "$(printf "%-${W}s" "Alsamixer")"
-        "─4" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "11" "$(printf "%-${W}s" "Enable service at boot")"
-        "12" "$(printf "%-${W}s" "Disable service at boot")"
-        "13" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
+        "11" "$(printf "%-${W}s" "Check log rotation")"
+        "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
+        "12" "$(printf "%-${W}s" "Enable service at boot")"
+        "13" "$(printf "%-${W}s" "Disable service at boot")"
+        "14" "$(printf "%-${W}s" "Restart GPIO setup")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -388,14 +443,14 @@ main_menu() {
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-label "Quit" \
-            --menu "\nChoose an action:\n" 26 50 16 \
+            --menu "\nChoose an action:\n" 28 50 18 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     else
         whiptail \
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-button "Quit" \
-            --menu "\nChoose an action:\n" 26 50 16 \
+            --menu "\nChoose an action:\n" 28 50 18 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     fi
 }
@@ -419,9 +474,10 @@ while true; do
         8)  action_edit_gpio ;;
         9)  action_edit_env ;;
         10) action_alsamixer ;;
-        11) action_enable ;;
-        12) action_disable ;;
-        13) action_gpio_restart ;;
+        11) action_check_logrotate ;;
+        12) action_enable ;;
+        13) action_disable ;;
+        14) action_gpio_restart ;;
         *)  ;; # separator selected, ignore
     esac
 done
