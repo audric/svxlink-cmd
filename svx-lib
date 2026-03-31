@@ -355,3 +355,218 @@ refresh_all_data() {
     collect_top
     collect_audio
 }
+
+# --- Service picker overlay ---
+PICKED_SERVICE=""
+
+pick_service() {
+    PICKED_SERVICE=""
+    local prompt="${1:-Select service}"
+    local sel=0
+    local count=${#SERVICES[@]}
+
+    local box_w=35 box_h=$((count + 4))
+    local box_row=$(( (TERM_ROWS - box_h) / 2 ))
+    local box_col=$(( (TERM_COLS - box_w) / 2 ))
+
+    while true; do
+        draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$prompt"
+
+        local i
+        for (( i = 0; i < count; i++ )); do
+            local svc="${SERVICES[$i]}"
+            local label="${SERVICE_LABELS[$svc]}"
+            local status="${SVC_STATUS[$svc]:-unknown}"
+            local r=$((box_row + 2 + i))
+            local c=$((box_col + 2))
+
+            move_to "$r" "$c"
+            if (( i == sel )); then
+                printf '%b %-16s %s %b' "$C_BOLD$C_ACCENT" "$label" "$status" "$C_RESET"
+            else
+                local sc="$C_DIM"
+                [[ "$status" == "active" ]] && sc="$C_OK"
+                [[ "$status" == "failed" ]] && sc="$C_ERR"
+                printf ' %-16s %b%s%b' "$label" "$sc" "$status" "$C_RESET"
+            fi
+        done
+
+        read_key 0
+        case "$READ_KEY_RESULT" in
+            up)    (( sel > 0 )) && (( sel-- )) ;;
+            down)  (( sel < count - 1 )) && (( sel++ )) ;;
+            enter) PICKED_SERVICE="${SERVICES[$sel]}"; return 0 ;;
+            esc|q) return 1 ;;
+        esac
+    done
+}
+
+# --- Result message overlay ---
+show_message() {
+    local title="$1" msg="$2"
+    local box_w=50 box_h=8
+    local box_row=$(( (TERM_ROWS - box_h) / 2 ))
+    local box_col=$(( (TERM_COLS - box_w) / 2 ))
+
+    draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$title"
+
+    local inner_w=$((box_w - 4))
+    local r=$((box_row + 2))
+    local line
+    while IFS= read -r line; do
+        draw_text_trunc "$r" "$((box_col + 2))" "$inner_w" "$line"
+        (( r++ ))
+        (( r >= box_row + box_h - 2 )) && break
+    done <<< "$msg"
+
+    move_to "$((box_row + box_h - 2))" "$((box_col + 2))"
+    printf '%b%s%b' "$C_DIM" "Press any key..." "$C_RESET"
+    read_key 0
+}
+
+# --- Service control actions ---
+
+do_service_action() {
+    local action="$1"
+    pick_service "Select: $action" || return
+    local svc="$PICKED_SERVICE"
+    local output
+    if output=$(systemctl "$action" "${svc}.service" 2>&1); then
+        show_message "Success" "${SERVICE_LABELS[$svc]}: ${action} done"
+    else
+        show_message "Error" "${SERVICE_LABELS[$svc]}: ${action} failed\n${output}"
+    fi
+    NEEDS_REDRAW=1
+}
+
+action_start()   { do_service_action "start"; }
+action_stop()    { do_service_action "stop"; }
+action_restart() { do_service_action "restart"; }
+action_reload()  { do_service_action "reload"; }
+action_enable()  { do_service_action "enable"; }
+action_disable() { do_service_action "disable"; }
+
+# --- Config editing actions ---
+
+action_edit_config() {
+    pick_service "Edit config" || return
+    local conf="${CONFIG_FILES[$PICKED_SERVICE]}"
+    if [[ ! -f "$conf" ]]; then
+        show_message "Error" "File not found: $conf"
+        return
+    fi
+    exit_tui
+    $EDITOR "$conf"
+    enter_tui
+    NEEDS_REDRAW=1
+}
+
+action_edit_gpio() {
+    if [[ ! -f "$GPIO_CONF" ]]; then
+        show_message "Error" "File not found: $GPIO_CONF"
+        return
+    fi
+    exit_tui
+    $EDITOR "$GPIO_CONF"
+    enter_tui
+    NEEDS_REDRAW=1
+}
+
+action_edit_env() {
+    pick_service "Edit env" || return
+    local envf="${ENV_FILES[$PICKED_SERVICE]}"
+    if [[ ! -f "$envf" ]]; then
+        show_message "Error" "File not found: $envf"
+        return
+    fi
+    exit_tui
+    $EDITOR "$envf"
+    enter_tui
+    NEEDS_REDRAW=1
+}
+
+# --- Audio action ---
+
+action_alsamixer() {
+    exit_tui
+    if [[ -n "$USB_CARD" ]]; then
+        alsamixer -c "$USB_CARD" || true
+    else
+        alsamixer || true
+    fi
+    enter_tui
+    NEEDS_REDRAW=1
+}
+
+# --- GPIO action ---
+
+action_gpio_restart() {
+    local output
+    if output=$(systemctl restart svxlink_gpio_setup.service 2>&1); then
+        show_message "Success" "GPIO setup restarted"
+    else
+        show_message "Error" "GPIO restart failed\n${output}"
+    fi
+    NEEDS_REDRAW=1
+}
+
+# --- Log rotation ---
+
+readonly LOGROTATE_CONTENT="/var/log/svxlink
+/var/log/remotetrx
+/var/log/svxreflector
+{
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}"
+
+action_check_logrotate() {
+    local has_logs=false
+    local svc
+    for svc in "${SERVICES[@]}"; do
+        [[ -f "${LOG_FILES[$svc]}" ]] && has_logs=true && break
+    done
+
+    if [[ "$has_logs" == false ]]; then
+        show_message "Log Rotation" "No file-based logs found.\nServices log to journald only."
+        return
+    fi
+
+    if ! command -v logrotate &>/dev/null; then
+        show_message "Warning" "logrotate not installed.\nRun: apt install logrotate"
+        return
+    fi
+
+    if [[ -f "$LOGROTATE_CONF" ]]; then
+        show_message "Log Rotation OK" "Config exists: ${LOGROTATE_CONF}"
+    else
+        show_message "Log Rotation" "No config found. Creating..."
+        echo "$LOGROTATE_CONTENT" > "$LOGROTATE_CONF"
+        chmod 644 "$LOGROTATE_CONF"
+        show_message "Success" "Created ${LOGROTATE_CONF}"
+    fi
+    NEEDS_REDRAW=1
+}
+
+# --- Health check ---
+
+action_health_check() {
+    local report=""
+    report+="DISK USAGE\n"
+    report+="$(df -h --output=target,size,used,avail,pcent / /boot 2>/dev/null | head -5)\n"
+    report+="\nTOP 5 PROCESSES (CPU)\n"
+    report+="$(ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu | head -6)\n"
+    report+="\nLOG ROTATION\n"
+    if [[ -f "$LOGROTATE_CONF" ]]; then
+        report+="OK: ${LOGROTATE_CONF} exists"
+    else
+        report+="MISSING: no logrotate config"
+    fi
+    show_message "System Health" "$report"
+    NEEDS_REDRAW=1
+}
