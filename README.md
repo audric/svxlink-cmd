@@ -1,4 +1,4 @@
-# svx.sh
+# svx
 
 Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/svxlink) services on a Raspberry Pi.
 
@@ -27,13 +27,13 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 ## Install
 
 ```bash
-sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/main/svx.sh -o /usr/local/bin/svx && sudo chmod +x /usr/local/bin/svx
+sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/main/svx -o /usr/local/bin/svx && sudo chmod +x /usr/local/bin/svx
 ```
 
 ## Usage
 
 ```bash
-sudo ./svx.sh
+sudo svx
 ```
 
 ## Screenshot
