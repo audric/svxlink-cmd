@@ -77,7 +77,8 @@ sudo svx
 ## Author
 
 [Audric IW1GEU](https://github.com/audric)
-[Rob VK5TRM] (https://github.com/vk5trm)
+
+[Rob VK5TRM](https://github.com/vk5trm)
 
 ## Other projects
 
