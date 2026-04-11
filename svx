@@ -439,47 +439,105 @@ action_devcal_sections() {
         return
     fi
     
-    # Extract ALL section names starting with Rx or Tx (case-insensitive)
-    local sections
-    sections=$(grep -E '^\[(([Rr][Xx]|[Tt][Xx])[^]]*)\]' "$conf" | sed 's/\[//;s/\]//' | sort)
+    # Extract all RepeaterLogic and SimplexLogic section names with their RX and TX values
+    local logics=()
+    local current_section=""
+    local current_rx=""
+    local current_tx=""
     
-    if [[ -z "$sections" ]]; then
-        show_result "No Radios Found" "No radio config sections found in:\n${conf}"
+    while IFS= read -r line; do
+        # Check if this is a RepeaterLogic or SimplexLogic section header
+        if [[ "$line" =~ ^\[(RepeaterLogic|SimplexLogic)[^]]*\] ]]; then
+            # Save previous section if it has RX and TX
+            if [[ -n "$current_section" && -n "$current_rx" && -n "$current_tx" ]]; then
+                logics+=("$current_section|$current_rx|$current_tx")
+            fi
+            # Start new section
+            current_section="${BASH_REMATCH[0]}"
+            current_section="${current_section%]}"
+            current_section="${current_section#[}"
+            current_rx=""
+            current_tx=""
+        # Extract RX value
+        elif [[ "$line" =~ ^RX= ]]; then
+            current_rx="${line#RX=}"
+            current_rx="${current_rx// /}"  # Remove spaces
+        # Extract TX value
+        elif [[ "$line" =~ ^TX= ]]; then
+            current_tx="${line#TX=}"
+            current_tx="${current_tx// /}"  # Remove spaces
+        fi
+    done < "$conf"
+    
+    # Don't forget the last section
+    if [[ -n "$current_section" && -n "$current_rx" && -n "$current_tx" ]]; then
+        logics+=("$current_section|$current_rx|$current_tx")
+    fi
+    
+    if [[ ${#logics[@]} -eq 0 ]]; then
+        show_result "No Logics Found" "No RepeaterLogic or SimplexLogic sections found in:\n${conf}"
         return
     fi
     
-    # Create menu items from sections
+    # Create menu items from logics
     local items=()
     local i=1
-    while IFS= read -r section; do
-        items+=("$i" "$section")
+    for logic in "${logics[@]}"; do
+        local section="${logic%%|*}"
+        local rx="${logic#*|}"
+        rx="${rx%%|*}"
+        local tx="${logic##*|}"
+        items+=("$i" "$section (RX: $rx / TX: $tx)")
         ((i++))
-    done <<< "$sections"
+    done
     
     if [[ "$DIALOG" == "dialog" ]]; then
-        dialog --colors --no-shadow --title " Select Radio " \
-            --menu "\nChoose a radio section:\n" 14 30 "${#items[@]}" \
+        dialog --colors --no-shadow --title " Select Logic " \
+            --menu "\nChoose a logic section:\n" 16 70 "${#items[@]}" \
             "${items[@]}" 2>"$DIALOG_OUT" || return
     else
-        whiptail --title " Select Radio " \
-            --menu "\nChoose a radio section:\n" 14 30 "${#items[@]}" \
+        whiptail --title " Select Logic " \
+            --menu "\nChoose a logic section:\n" 16 70 "${#items[@]}" \
             "${items[@]}" 2>"$DIALOG_OUT" || return
     fi
     
     local choice
     choice=$(<"$DIALOG_OUT")
-    local selected_section
-    selected_section=$(echo "$sections" | sed -n "${choice}p")
+    local selected_logic="${logics[$((choice - 1))]}"
     
-    # Determine flag based on section name (Rx or Tx)
-    local flag
-    if [[ "$selected_section" =~ ^[Rr][Xx] ]]; then
-        flag="-r"
-    elif [[ "$selected_section" =~ ^[Tt][Xx] ]]; then
-        flag="-t"
+    # Parse the selected logic using pipe delimiter
+    local rx_section="${selected_logic#*|}"
+    rx_section="${rx_section%%|*}"
+    local tx_section="${selected_logic##*|}"
+    
+    # Show RX/TX selection menu
+    local rxtx_items=(
+        "1" "RX: $rx_section"
+        "2" "TX: $tx_section"
+    )
+    
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " Select RX or TX " \
+            --menu "\nChoose which to calibrate:\n" 12 40 2 \
+            "${rxtx_items[@]}" 2>"$DIALOG_OUT" || return
     else
-        show_result "Error" "Invalid section: ${selected_section}"
-        return
+        whiptail --title " Select RX or TX " \
+            --menu "\nChoose which to calibrate:\n" 12 40 2 \
+            "${rxtx_items[@]}" 2>"$DIALOG_OUT" || return
+    fi
+    
+    local rxtx_choice
+    rxtx_choice=$(<"$DIALOG_OUT")
+    
+    # Determine which section and flag to use
+    local section
+    local flag
+    if [[ "$rxtx_choice" == "1" ]]; then
+        section="$rx_section"
+        flag="-r"
+    else
+        section="$tx_section"
+        flag="-t"
     fi
     
     # Stop svxlink service
@@ -488,12 +546,109 @@ action_devcal_sections() {
     systemctl stop svxlink.service
     sleep 2
     
-    # Run devcal with appropriate flag
-    echo "=== Running devcal ${flag} ${selected_section} (Ctrl+C to stop) ==="
+    # Run devcal
+    echo "=== Running devcal ${flag} ${section} (Ctrl+C to stop) ==="
     echo ""
     (
         trap 'exit 0' INT
-        devcal ${flag} "$conf" "$selected_section"
+        devcal ${flag} "$conf" "$section"
+    )
+    
+    # Restart svxlink service
+    echo ""
+    echo "=== Restarting svxlink service ==="
+    systemctl start svxlink.service
+    sleep 2
+    
+    echo "Done! Press Enter to return to menu..."
+    read -r
+}
+
+# =============================================================================
+# NEW FUNCTION: siglevdetcal with Section Selection added by VK5TRM
+# =============================================================================
+
+action_siglevdetcal() {
+    local conf="${CONFIG_FILES[svxlink]}"
+    
+    if [[ ! -f "$conf" ]]; then
+        show_result "Error" "Config file not found:\n${conf}"
+        return
+    fi
+    
+    # Extract all RepeaterLogic and SimplexLogic section names with their RX values
+    local logics=()
+    local current_section=""
+    local current_rx=""
+    
+    while IFS= read -r line; do
+        # Check if this is a RepeaterLogic or SimplexLogic section header
+        if [[ "$line" =~ ^\[(RepeaterLogic|SimplexLogic)[^]]*\] ]]; then
+            # Save previous section if it has RX
+            if [[ -n "$current_section" && -n "$current_rx" ]]; then
+                logics+=("$current_section|$current_rx")
+            fi
+            # Start new section
+            current_section="${BASH_REMATCH[0]}"
+            current_section="${current_section%]}"
+            current_section="${current_section#[}"
+            current_rx=""
+        # Extract RX value
+        elif [[ "$line" =~ ^RX= ]]; then
+            current_rx="${line#RX=}"
+            current_rx="${current_rx// /}"  # Remove spaces
+        fi
+    done < "$conf"
+    
+    # Don't forget the last section
+    if [[ -n "$current_section" && -n "$current_rx" ]]; then
+        logics+=("$current_section|$current_rx")
+    fi
+    
+    if [[ ${#logics[@]} -eq 0 ]]; then
+        show_result "No RX Found" "No RX sections found in logic configurations in:\n${conf}"
+        return
+    fi
+    
+    # Create menu items from logics
+    local items=()
+    local i=1
+    for logic in "${logics[@]}"; do
+        local section="${logic%%|*}"
+        local rx="${logic##*|}"
+        items+=("$i" "$section - RX: $rx")
+        ((i++))
+    done
+    
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " Select RX " \
+            --menu "\nChoose an RX section:\n" 16 70 "${#items[@]}" \
+            "${items[@]}" 2>"$DIALOG_OUT" || return
+    else
+        whiptail --title " Select RX " \
+            --menu "\nChoose an RX section:\n" 16 70 "${#items[@]}" \
+            "${items[@]}" 2>"$DIALOG_OUT" || return
+    fi
+    
+    local choice
+    choice=$(<"$DIALOG_OUT")
+    local selected_logic="${logics[$((choice - 1))]}"
+    
+    # Parse the selected logic to get RX section
+    local rx_section="${selected_logic##*|}"
+    
+    # Stop svxlink service
+    clear
+    echo "=== Stopping svxlink service ==="
+    systemctl stop svxlink.service
+    sleep 2
+    
+    # Run siglevdetcal
+    echo "=== Running siglevdetcal $conf $rx_section (Ctrl+C to stop) ==="
+    echo ""
+    (
+        trap 'exit 0' INT
+        siglevdetcal "$conf" "$rx_section"
     )
     
     # Restart svxlink service
@@ -538,7 +693,8 @@ main_menu() {
         "14" "$(printf "%-${W}s" "Disable service at boot")"
         "15" "$(printf "%-${W}s" "Restart GPIO setup")"
         "─6" "$(printf "%-${W}s" "─── Calibration ────────")"
-        "16" "$(printf "%-${W}s" "Run Audio Calibration Tool")"
+        "16" "$(printf "%-${W}s" "Audio Calibration Tool")"
+        "17" "$(printf "%-${W}s" "Signal Level Detector Calibration")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -583,9 +739,10 @@ while true; do
         14) action_disable ;;
         15) action_gpio_restart ;;
         16) action_devcal_sections ;;
+        17) action_siglevdetcal ;;
         *)  ;; # separator selected, ignore
     esac
 done
 
-clear
+ clear
 echo "Goodbye!"
