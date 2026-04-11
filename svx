@@ -141,9 +141,9 @@ build_status_title() {
         local label="${SERVICE_LABELS[$svc]}"
         if [[ "$DIALOG" == "dialog" ]]; then
             case "$status" in
-                active)  title+="\\Z2● ${label}\\Zn  " ;;
-                failed)  title+="\\Z1● ${label}\\Zn  " ;;
-                *)       title+="\\Z3○ ${label}\\Zn  " ;;
+                active)  title+="\Z2● ${label}\Zn  " ;;
+                failed)  title+="\Z1● ${label}\Zn  " ;;
+                *)       title+="\Z3○ ${label}\Zn  " ;;
             esac
         else
             case "$status" in
@@ -428,6 +428,85 @@ action_gpio_restart() {
 }
 
 # =============================================================================
+# NEW FUNCTION: devcal with Section Selection added by VK5TRM
+# =============================================================================
+
+action_devcal_sections() {
+    local conf="${CONFIG_FILES[svxlink]}"
+    
+    if [[ ! -f "$conf" ]]; then
+        show_result "Error" "Config file not found:\n${conf}"
+        return
+    fi
+    
+    # Extract ALL section names starting with Rx or Tx (case-insensitive)
+    local sections
+    sections=$(grep -E '^\[(([Rr][Xx]|[Tt][Xx])[^]]*)\]' "$conf" | sed 's/\[//;s/\]//' | sort)
+    
+    if [[ -z "$sections" ]]; then
+        show_result "No Radios Found" "No radio config sections found in:\n${conf}"
+        return
+    fi
+    
+    # Create menu items from sections
+    local items=()
+    local i=1
+    while IFS= read -r section; do
+        items+=("$i" "$section")
+        ((i++))
+    done <<< "$sections"
+    
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " Select Radio " \
+            --menu "\nChoose a radio section:\n" 14 30 "${#items[@]}" \
+            "${items[@]}" 2>"$DIALOG_OUT" || return
+    else
+        whiptail --title " Select Radio " \
+            --menu "\nChoose a radio section:\n" 14 30 "${#items[@]}" \
+            "${items[@]}" 2>"$DIALOG_OUT" || return
+    fi
+    
+    local choice
+    choice=$(<"$DIALOG_OUT")
+    local selected_section
+    selected_section=$(echo "$sections" | sed -n "${choice}p")
+    
+    # Determine flag based on section name (Rx or Tx)
+    local flag
+    if [[ "$selected_section" =~ ^[Rr][Xx] ]]; then
+        flag="-r"
+    elif [[ "$selected_section" =~ ^[Tt][Xx] ]]; then
+        flag="-t"
+    else
+        show_result "Error" "Invalid section: ${selected_section}"
+        return
+    fi
+    
+    # Stop svxlink service
+    clear
+    echo "=== Stopping svxlink service ==="
+    systemctl stop svxlink.service
+    sleep 2
+    
+    # Run devcal with appropriate flag
+    echo "=== Running devcal ${flag} ${selected_section} (Ctrl+C to stop) ==="
+    echo ""
+    (
+        trap 'exit 0' INT
+        devcal ${flag} "$conf" "$selected_section"
+    )
+    
+    # Restart svxlink service
+    echo ""
+    echo "=== Restarting svxlink service ==="
+    systemctl start svxlink.service
+    sleep 2
+    
+    echo "Done! Press Enter to return to menu..."
+    read -r
+}
+
+# =============================================================================
 # Main Menu
 # =============================================================================
 
@@ -458,6 +537,8 @@ main_menu() {
         "13" "$(printf "%-${W}s" "Enable service at boot")"
         "14" "$(printf "%-${W}s" "Disable service at boot")"
         "15" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "─6" "$(printf "%-${W}s" "─── Calibration ────────")"
+        "16" "$(printf "%-${W}s" "Run Audio Calibration Tool")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -465,14 +546,14 @@ main_menu() {
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-label "Quit" \
-            --menu "\nChoose an action:\n" 30 50 20 \
+            --menu "\nChoose an action:\n" 32 50 22 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     else
         whiptail \
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-button "Quit" \
-            --menu "\nChoose an action:\n" 30 50 20 \
+            --menu "\nChoose an action:\n" 32 50 22 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     fi
 }
@@ -501,6 +582,7 @@ while true; do
         13) action_enable ;;
         14) action_disable ;;
         15) action_gpio_restart ;;
+        16) action_devcal_sections ;;
         *)  ;; # separator selected, ignore
     esac
 done
