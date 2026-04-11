@@ -12,6 +12,7 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 - Alsamixer integration (auto-detects USB audio device)
 - Log rotation check and auto-fix
 - Live system info: service status, CPU temperature, uptime, last boot
+- Audio Calibration tool for ajusting audio level on Rx and TX
 
 ## Services managed
 
