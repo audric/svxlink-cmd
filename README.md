@@ -13,6 +13,7 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 - Log rotation check and auto-fix
 - Live system info: service status, CPU temperature, uptime, last boot
 - Audio Calibration tool for adjusting audio level on Rx and TX
+- Signal detector Calibration Tool for adjusting CTCSS tone sensitivity
 
 ## Services managed
 
@@ -66,7 +67,8 @@ sudo svx
 │ │ 13  Enable service at boot            │ │
 │ │ 14  Disable service at boot           │ │
 │ │ 15  Restart GPIO setup                │ │
-│ | 16  Run Audio Calibration tool        | |
+│ | 16  Audio Calibration tool            | |
+| | 17  Signal Level Detector Calibration | |
 | |───────────────────────────────────────┘ │
 │          <OK>          <Quit>             │
 └───────────────────────────────────────────┘
@@ -75,6 +77,7 @@ sudo svx
 ## Author
 
 [Audric IW1GEU](https://github.com/audric)
+[Rob VK5TRM] (https://github.com/vk5trm)
 
 ## Other projects
 
