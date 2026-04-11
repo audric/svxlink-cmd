@@ -51,20 +51,22 @@ sudo svx
 │ │  4  Reload config (SIGHUP)            │ │
 │ │  ─  ─── Monitoring ─────────          │ │
 │ │  5  Show detailed status              │ │
-│ │  6  Follow live logs                  │ │
+│ │  6  Follow live logs                  | |
+| |  7  System health check               │ │
 │ │  ─  ─── Configuration ──────          │ │
-│ │  7  Edit config file                  │ │
-│ │  8  Edit GPIO config                  │ │
-│ │  9  Edit environment defaults         │ │
+│ │  8  Edit config file                  │ │
+│ │  9  Edit GPIO config                  │ │
+│ │ 10 Edit environment defaults          │ │
 │ │  ─  ─── Audio ──────────────          │ │
-│ │ 10  Alsamixer                         │ │
+│ │ 11  Alsamixer                         │ │
 │ │  ─  ─── Maintenance ────────          │ │
-│ │ 11  Check log rotation                │ │
+│ │ 12  Check log rotation                │ │
 │ │  ─  ─── Boot & GPIO ────────          │ │
-│ │ 12  Enable service at boot            │ │
-│ │ 13  Disable service at boot           │ │
-│ │ 14  Restart GPIO setup                │ │
-│ └───────────────────────────────────────┘ │
+│ │ 13  Enable service at boot            │ │
+│ │ 14  Disable service at boot           │ │
+│ │ 15  Restart GPIO setup                │ │
+│ | 16  Run Audio Calibration tool        | |
+| |───────────────────────────────────────┘ │
 │          <OK>          <Quit>             │
 └───────────────────────────────────────────┘
 ```
