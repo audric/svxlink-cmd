@@ -58,17 +58,18 @@ sudo svx
 │ │  ─  ─── Configuration ──────          │ │
 │ │  8  Edit config file                  │ │
 │ │  9  Edit GPIO config                  │ │
-│ │ 10 Edit environment defaults          │ │
+│ │ 10  Edit environment defaults         | | 
+│ │ 11  Edit event scripts (.tcl          | |
 │ │  ─  ─── Audio ──────────────          │ │
-│ │ 11  Alsamixer                         │ │
+│ │ 12  Alsamixer                         │ │
+│ | 13  Audio Calibration tool            | |
+| | 14  Signal Level Detector Calibration | |
 │ │  ─  ─── Maintenance ────────          │ │
-│ │ 12  Check log rotation                │ │
+│ │ 15  Check log rotation                │ │
 │ │  ─  ─── Boot & GPIO ────────          │ │
-│ │ 13  Enable service at boot            │ │
-│ │ 14  Disable service at boot           │ │
-│ │ 15  Restart GPIO setup                │ │
-│ | 16  Audio Calibration tool            | |
-| | 17  Signal Level Detector Calibration | |
+│ │ 16  Enable service at boot            │ │
+│ │ 17  Disable service at boot           │ │
+│ │ 18  Restart GPIO setup                │ │
 | |───────────────────────────────────────┘ │
 │          <OK>          <Quit>             │
 └───────────────────────────────────────────┘
