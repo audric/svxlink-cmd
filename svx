@@ -333,7 +333,7 @@ action_edit_env() {
 }
 
 # =============================================================================
-# Event Script Actions
+# NEW FUNCTION: Edit Event Script Actions added by VK5TRM
 # =============================================================================
 
 action_edit_events() {
@@ -740,18 +740,18 @@ main_menu() {
         "8"  "$(printf "%-${W}s" "Edit config file")"
         "9"  "$(printf "%-${W}s" "Edit GPIO config")"
         "10" "$(printf "%-${W}s" "Edit environment defaults")"
-        "18" "$(printf "%-${W}s" "Edit event scripts (.tcl)")"
+        "11" "$(printf "%-${W}s" "Edit event scripts (.tcl)")"
         "─3" "$(printf "%-${W}s" "─── Audio ──────────────")"
-        "11" "$(printf "%-${W}s" "Alsamixer")"
+        "12" "$(printf "%-${W}s" "Alsamixer")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
-        "12" "$(printf "%-${W}s" "Check log rotation")"
+        "13" "$(printf "%-${W}s" "Check log rotation")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "13" "$(printf "%-${W}s" "Enable service at boot")"
-        "14" "$(printf "%-${W}s" "Disable service at boot")"
-        "15" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "14" "$(printf "%-${W}s" "Enable service at boot")"
+        "15" "$(printf "%-${W}s" "Disable service at boot")"
+        "16" "$(printf "%-${W}s" "Restart GPIO setup")"
         "─6" "$(printf "%-${W}s" "─── Calibration ────────")"
-        "16" "$(printf "%-${W}s" "Audio Calibration Tool")"
-        "17" "$(printf "%-${W}s" "Signal Level Detector Calibration")"
+        "17" "$(printf "%-${W}s" "Audio Calibration Tool")"
+        "18" "$(printf "%-${W}s" "Signal Level Detector Calibration")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -790,14 +790,14 @@ while true; do
         8)  action_edit_config ;;
         9)  action_edit_gpio ;;
         10) action_edit_env ;;
-        11) action_alsamixer ;;
-        12) action_check_logrotate ;;
-        13) action_enable ;;
-        14) action_disable ;;
-        15) action_gpio_restart ;;
-        16) action_devcal_sections ;;
-        17) action_siglevdetcal ;;
-        18) action_edit_events ;;
+        11) action_edit_events ;;
+        12) action_alsamixer ;;
+        13) action_check_logrotate ;;
+        14) action_enable ;;
+        15) action_disable ;;
+        16) action_gpio_restart ;;
+        17) action_devcal_sections ;;
+        18) action_siglevdetcal ;;
         *)  ;; # separator selected, ignore
     esac
 done
