@@ -342,41 +342,41 @@ action_edit_events() {
         return
     fi
 
-    # Find all .tcl files in the events directory
-    local tcl_files=()
-    while IFS= read -r file; do
-        tcl_files+=("$file")
-    done < <(find "$EVENTS_DIR" -maxdepth 1 -name "*.tcl" -type f 2>/dev/null | sort)
+    # Find all .tcl files using mapfile (more reliable)
+    local tcl_files
+    mapfile -t tcl_files < <(find "$EVENTS_DIR" -maxdepth 1 -name "*.tcl" -type f 2>/dev/null | sort)
 
     if [[ ${#tcl_files[@]} -eq 0 ]]; then
         show_result "No TCL Files" "No .tcl files found in:\n${EVENTS_DIR}"
         return
     fi
 
-    # Create menu items array
-    local items=()
-    for i in "${!tcl_files[@]}"; do
-        local filename
-        filename=$(basename "${tcl_files[$i]}")
-        items+=("$((i + 1))" "$filename")
+    # Build menu items as simple tag-description pairs
+    local -a menu_items=()
+    local idx=1
+    for file in "${tcl_files[@]}"; do
+        menu_items+=("$idx" "$(basename "$file")")
+        ((idx++))
     done
 
-    # Calculate appropriate menu height
-    local menu_height=$((${#tcl_files[@]} + 8))
-    [[ $menu_height -gt 20 ]] && menu_height=20
-
+    # Display menu using eval for proper expansion
+    local cmd
     if [[ "$DIALOG" == "dialog" ]]; then
-        dialog --colors --no-shadow --title " Select Event Script " \
-            --menu "\nChoose a .tcl file to edit:\n" "$menu_height" 70 "${#tcl_files[@]}" \
-            "${items[@]}" 2>"$DIALOG_OUT" || return
+        cmd="dialog --colors --no-shadow --title ' Select Event Script ' --menu '\nChoose a .tcl file to edit:\n' 16 70 7"
     else
-        whiptail --title " Select Event Script " \
-            --menu "\nChoose a .tcl file to edit:\n" "$menu_height" 70 "${#tcl_files[@]}" \
-            "${items[@]}" 2>"$DIALOG_OUT" || return
+        cmd="whiptail --title ' Select Event Script ' --menu '\nChoose a .tcl file to edit:\n' 16 70 7"
     fi
+    
+    cmd="$cmd $(printf '%q ' "${menu_items[@]}") 2>'$DIALOG_OUT'"
+    eval "$cmd" || return
 
     local choice
     choice=$(<"$DIALOG_OUT")
+    
+    if [[ -z "$choice" ]] || [[ ! "$choice" =~ ^[0-9]+$ ]]; then
+        return
+    fi
+
     local selected_file="${tcl_files[$((choice - 1))]}"
 
     if [[ ! -f "$selected_file" ]]; then
