@@ -344,38 +344,34 @@ action_edit_events() {
 
     # Find all .tcl files in the events directory
     local tcl_files=()
-    local temp_array=()
-    
-    # Use find to locate .tcl files
     while IFS= read -r file; do
-        [[ -f "$file" ]] && temp_array+=("$file")
+        tcl_files+=("$file")
     done < <(find "$EVENTS_DIR" -maxdepth 1 -name "*.tcl" -type f 2>/dev/null | sort)
 
-    if [[ ${#temp_array[@]} -eq 0 ]]; then
+    if [[ ${#tcl_files[@]} -eq 0 ]]; then
         show_result "No TCL Files" "No .tcl files found in:\n${EVENTS_DIR}"
         return
     fi
 
-    # Copy to tcl_files array
-    tcl_files=("${temp_array[@]}")
-
-    # Create menu items
+    # Create menu items array
     local items=()
-    local i=1
-    for file in "${tcl_files[@]}"; do
+    for i in "${!tcl_files[@]}"; do
         local filename
-        filename=$(basename "$file")
-        items+=("$i" "$filename")
-        ((i++))
+        filename=$(basename "${tcl_files[$i]}")
+        items+=("$((i + 1))" "$filename")
     done
+
+    # Calculate appropriate menu height
+    local menu_height=$((${#tcl_files[@]} + 8))
+    [[ $menu_height -gt 20 ]] && menu_height=20
 
     if [[ "$DIALOG" == "dialog" ]]; then
         dialog --colors --no-shadow --title " Select Event Script " \
-            --menu "\nChoose a .tcl file to edit:\n" 16 60 "${#items[@]}" \
+            --menu "\nChoose a .tcl file to edit:\n" "$menu_height" 70 "${#tcl_files[@]}" \
             "${items[@]}" 2>"$DIALOG_OUT" || return
     else
         whiptail --title " Select Event Script " \
-            --menu "\nChoose a .tcl file to edit:\n" 16 60 "${#items[@]}" \
+            --menu "\nChoose a .tcl file to edit:\n" "$menu_height" 70 "${#tcl_files[@]}" \
             "${items[@]}" 2>"$DIALOG_OUT" || return
     fi
 
