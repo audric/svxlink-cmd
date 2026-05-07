@@ -124,6 +124,7 @@ declare -A LOG_FILES=(
 )
 
 readonly GPIO_CONF="/etc/svxlink/gpio.conf"
+readonly EVENTS_DIR="/usr/share/svxlink/events.d"
 
 # Get service status as a word: active, inactive, failed, unknown
 get_service_status() {
@@ -329,6 +330,59 @@ action_edit_env() {
         return
     fi
     $EDITOR "$envf"
+}
+
+# =============================================================================
+# Event Script Actions
+# =============================================================================
+
+action_edit_events() {
+    if [[ ! -d "$EVENTS_DIR" ]]; then
+        show_result "Error" "Events directory not found:\n${EVENTS_DIR}"
+        return
+    fi
+
+    # Find all .tcl files in the events directory
+    local tcl_files=()
+    while IFS= read -r -d '' file; do
+        tcl_files+=("$file")
+    done < <(find "$EVENTS_DIR" -maxdepth 1 -name "*.tcl" -type f -print0 | sort -z)
+
+    if [[ ${#tcl_files[@]} -eq 0 ]]; then
+        show_result "No TCL Files" "No .tcl files found in:\n${EVENTS_DIR}"
+        return
+    fi
+
+    # Create menu items
+    local items=()
+    local i=1
+    for file in "${tcl_files[@]}"; do
+        local filename
+        filename=$(basename "$file")
+        items+=("$i" "$filename")
+        ((i++))
+    done
+
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " Select Event Script " \
+            --menu "\nChoose a .tcl file to edit:\n" 16 60 "${#items[@]}" \
+            "${items[@]}" 2>"$DIALOG_OUT" || return
+    else
+        whiptail --title " Select Event Script " \
+            --menu "\nChoose a .tcl file to edit:\n" 16 60 "${#items[@]}" \
+            "${items[@]}" 2>"$DIALOG_OUT" || return
+    fi
+
+    local choice
+    choice=$(<"$DIALOG_OUT")
+    local selected_file="${tcl_files[$((choice - 1))]}"
+
+    if [[ ! -f "$selected_file" ]]; then
+        show_result "Error" "File not found:\n${selected_file}"
+        return
+    fi
+
+    $EDITOR "$selected_file"
 }
 
 # =============================================================================
@@ -684,6 +738,7 @@ main_menu() {
         "8"  "$(printf "%-${W}s" "Edit config file")"
         "9"  "$(printf "%-${W}s" "Edit GPIO config")"
         "10" "$(printf "%-${W}s" "Edit environment defaults")"
+        "18" "$(printf "%-${W}s" "Edit event scripts (.tcl)")"
         "─3" "$(printf "%-${W}s" "─── Audio ──────────────")"
         "11" "$(printf "%-${W}s" "Alsamixer")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
@@ -702,14 +757,14 @@ main_menu() {
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-label "Quit" \
-            --menu "\nChoose an action:\n" 32 50 22 \
+            --menu "\nChoose an action:\n" 33 50 24 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     else
         whiptail \
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-button "Quit" \
-            --menu "\nChoose an action:\n" 32 50 22 \
+            --menu "\nChoose an action:\n" 33 50 24 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     fi
 }
@@ -740,6 +795,7 @@ while true; do
         15) action_gpio_restart ;;
         16) action_devcal_sections ;;
         17) action_siglevdetcal ;;
+        18) action_edit_events ;;
         *)  ;; # separator selected, ignore
     esac
 done
