@@ -743,15 +743,15 @@ main_menu() {
         "11" "$(printf "%-${W}s" "Edit event scripts (.tcl)")"
         "─3" "$(printf "%-${W}s" "─── Audio ──────────────")"
         "12" "$(printf "%-${W}s" "Alsamixer")"
+        "13" "$(printf "%-${W}s" "Audio Calibration Tool")"
+        "14" "$(printf "%-${W}s" "Signal Level Detector Calibration")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
-        "13" "$(printf "%-${W}s" "Check log rotation")"
+        "15" "$(printf "%-${W}s" "Check log rotation")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "14" "$(printf "%-${W}s" "Enable service at boot")"
-        "15" "$(printf "%-${W}s" "Disable service at boot")"
-        "16" "$(printf "%-${W}s" "Restart GPIO setup")"
-        "─6" "$(printf "%-${W}s" "─── Calibration ────────")"
-        "17" "$(printf "%-${W}s" "Audio Calibration Tool")"
-        "18" "$(printf "%-${W}s" "Signal Level Detector Calibration")"
+        "16" "$(printf "%-${W}s" "Enable service at boot")"
+        "17" "$(printf "%-${W}s" "Disable service at boot")"
+        "18" "$(printf "%-${W}s" "Restart GPIO setup")"
+        
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -791,13 +791,13 @@ while true; do
         9)  action_edit_gpio ;;
         10) action_edit_env ;;
         11) action_edit_events ;;
-        12) action_alsamixer ;;
-        13) action_check_logrotate ;;
-        14) action_enable ;;
-        15) action_disable ;;
-        16) action_gpio_restart ;;
-        17) action_devcal_sections ;;
-        18) action_siglevdetcal ;;
+        12) action_alsamixer  ;;
+        13) action_devcal_sections ;;
+        14) action_siglevdetcal ;;
+        15) action_check_logrotate ;;
+        16) action_enable ;;
+        17) action_disable ;;
+        18) action_gpio_restart ;;
         *)  ;; # separator selected, ignore
     esac
 done
