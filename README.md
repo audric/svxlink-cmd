@@ -23,18 +23,40 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 ## Requirements
 
 - Raspberry Pi (or Debian-based system) with SvxLink installed
-- `dialog` or `whiptail` (auto-detected, will offer to install if missing)
+- `dialog` or `whiptail` — for the classic `svx` menu only (auto-detected, offered for install if missing)
+- `alsa-utils` — for the audio panel and volume persistence (offered for install if missing)
+- The `svx-tabs` / `svx-dashboard` TUI layouts need only `bash`; they don't use `dialog`
 
 ## Install
+
+Pick the front-end you want. The classic menu (`svx`) is recommended and
+self-contained; the `svx-tabs` and `svx-dashboard` layouts also pull in the
+shared `svx-lib` library (it must live next to them, hence `/usr/local/bin`).
+
+**Classic menu (`svx`):**
 
 ```bash
 sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx -o /usr/local/bin/svx && sudo chmod +x /usr/local/bin/svx
 ```
 
+**Tabs (`svx-tabs`):**
+
+```bash
+sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx-lib -o /usr/local/bin/svx-lib && sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx-tabs -o /usr/local/bin/svx-tabs && sudo chmod +x /usr/local/bin/svx-tabs
+```
+
+**Dashboard (`svx-dashboard`):**
+
+```bash
+sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx-lib -o /usr/local/bin/svx-lib && sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx-dashboard -o /usr/local/bin/svx-dashboard && sudo chmod +x /usr/local/bin/svx-dashboard
+```
+
 ## Usage
 
 ```bash
-sudo svx
+sudo svx            # classic dialog menu
+sudo svx-tabs       # tabbed TUI
+sudo svx-dashboard  # single-screen dashboard
 ```
 
 ## Screenshots
