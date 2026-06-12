@@ -43,6 +43,40 @@ Three front-ends are available: the classic `dialog` menu (`svx`) and two
 full-screen custom TUI layouts that share `svx-lib` — a tabbed view (`svx-tabs`)
 and a single-screen dashboard (`svx-dashboard`).
 
+### Classic menu (`svx`)
+
+Preferred by the author, and the version installed by the one-line installer above.
+
+```
+○ SvxLink  ○ RemoteTRX  ○ SvxReflector | 48°C  Up 3d 2h  Since 2026-03-28 14:30
+┌──────────── Svx Admin v2.0.0 ────────────┐
+│                                           │
+│  Choose an action:                        │
+│ ┌───────────────────────────────────────┐ │
+│ │  1  Start service                     │ │
+│ │  2  Stop service                      │ │
+│ │  3  Restart service                   │ │
+│ │  4  Reload config (SIGHUP)            │ │
+│ │  ─  ─── Monitoring ─────────          │ │
+│ │  5  Show detailed status              │ │
+│ │  6  Follow live logs                  │ │
+│ │  ─  ─── Configuration ──────          │ │
+│ │  7  Edit config file                  │ │
+│ │  8  Edit GPIO config                  │ │
+│ │  9  Edit environment defaults         │ │
+│ │  ─  ─── Audio ──────────────          │ │
+│ │ 10  Alsamixer                         │ │
+│ │  ─  ─── Maintenance ────────          │ │
+│ │ 11  Check log rotation                │ │
+│ │  ─  ─── Boot & GPIO ────────          │ │
+│ │ 12  Enable service at boot            │ │
+│ │ 13  Disable service at boot           │ │
+│ │ 14  Restart GPIO setup                │ │
+│ └───────────────────────────────────────┘ │
+│          <OK>          <Quit>             │
+└───────────────────────────────────────────┘
+```
+
 ### Dashboard (`svx-dashboard`)
 
 Single-screen overview — services, audio, disk, and live logs at a glance.
@@ -91,38 +125,6 @@ Tabbed layout — `Overview`, `Logs`, `Config`, and `Maintenance` on `[1-4]`.
 ├─────────────────────────────────────┴─────────────────────────────────────┤
 │ [T]art [S]top [R]estart re[L]oad [A]lsa                    [1-4] Tab  [Q] │
 └───────────────────────────────────────────────────────────────────────────┘
-```
-
-### Classic menu (`svx`)
-
-```
-○ SvxLink  ○ RemoteTRX  ○ SvxReflector | 48°C  Up 3d 2h  Since 2026-03-28 14:30
-┌──────────── Svx Admin v1.0.0 ────────────┐
-│                                           │
-│  Choose an action:                        │
-│ ┌───────────────────────────────────────┐ │
-│ │  1  Start service                     │ │
-│ │  2  Stop service                      │ │
-│ │  3  Restart service                   │ │
-│ │  4  Reload config (SIGHUP)            │ │
-│ │  ─  ─── Monitoring ─────────          │ │
-│ │  5  Show detailed status              │ │
-│ │  6  Follow live logs                  │ │
-│ │  ─  ─── Configuration ──────          │ │
-│ │  7  Edit config file                  │ │
-│ │  8  Edit GPIO config                  │ │
-│ │  9  Edit environment defaults         │ │
-│ │  ─  ─── Audio ──────────────          │ │
-│ │ 10  Alsamixer                         │ │
-│ │  ─  ─── Maintenance ────────          │ │
-│ │ 11  Check log rotation                │ │
-│ │  ─  ─── Boot & GPIO ────────          │ │
-│ │ 12  Enable service at boot            │ │
-│ │ 13  Disable service at boot           │ │
-│ │ 14  Restart GPIO setup                │ │
-│ └───────────────────────────────────────┘ │
-│          <OK>          <Quit>             │
-└───────────────────────────────────────────┘
 ```
 
 ## Author
