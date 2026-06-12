@@ -347,6 +347,7 @@ check_min_size() {
 }
 
 # --- Main ---
+check_dependencies
 detect_usb_card
 enter_tui
 

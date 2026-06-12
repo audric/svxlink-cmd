@@ -256,6 +256,31 @@ detect_usb_card() {
     fi
 }
 
+# --- Dependency check (run before the TUI starts) ---
+# alsa-utils provides amixer/alsamixer (audio panel) and alsactl + the
+# alsa-restore service (so volumes persist across reboot). Prompt to install
+# if missing, since the audio features are core to this tool.
+check_dependencies() {
+    local missing=()
+    command -v amixer    &>/dev/null || missing+=("alsa-utils")
+    command -v alsamixer &>/dev/null || missing+=("alsa-utils")
+    command -v alsactl   &>/dev/null || missing+=("alsa-utils")
+    # de-duplicate
+    [[ ${#missing[@]} -gt 0 ]] && missing=("alsa-utils")
+    [[ ${#missing[@]} -eq 0 ]] && return 0
+
+    echo "Missing packages: ${missing[*]}"
+    read -rp "Install them now? [Y/n] " answer
+    case "${answer:-y}" in
+        [Yy]*)
+            apt-get update -qq && apt-get install -y "${missing[@]}"
+            ;;
+        *)
+            echo "Audio features require: ${missing[*]}" >&2
+            ;;
+    esac
+}
+
 # --- Audio levels ---
 AUDIO_MIC=""       # percentage (integer) or ""
 AUDIO_SPKR=""      # percentage (integer) or ""
@@ -382,8 +407,8 @@ pick_service() {
     local box_col=$(( (TERM_COLS - box_w) / 2 ))
     local inner_w=$((box_w - 4))
 
+    clear
     while true; do
-        clear_region "$box_row" 0 "$TERM_COLS" "$box_h"
         draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$prompt"
 
         local i
@@ -393,20 +418,15 @@ pick_service() {
             local status="${SVC_STATUS[$svc]:-unknown}"
             local r=$((box_row + 2 + i))
             local c=$((box_col + 2))
-            local entry
-            entry=$(printf ' %-14s %s' "$label" "$status")
 
             move_to "$r" "$c"
             if (( i == sel )); then
-                printf '%b%-*s%b' "$C_BOLD$C_ACCENT" "$inner_w" "$entry" "$C_RESET"
+                printf '%b %-14s %-*s%b' "$C_BOLD$C_ACCENT" "$label" "$((inner_w - 16))" "$status" "$C_RESET"
             else
                 local sc="$C_DIM"
                 [[ "$status" == "active" ]] && sc="$C_OK"
                 [[ "$status" == "failed" ]] && sc="$C_ERR"
-                # Print padded blank first at the correct position, then overwrite with colored text
-                printf '%-*s' "$inner_w" "$entry"
-                move_to "$r" "$((c + 16))"
-                printf '%b%s%b' "$sc" "$status" "$C_RESET"
+                printf ' %-14s %b%-*s%b' "$label" "$sc" "$((inner_w - 16))" "$status" "$C_RESET"
             fi
         done
 
@@ -438,7 +458,7 @@ show_message() {
     local box_row=$(( (TERM_ROWS - box_h) / 2 ))
     local box_col=$(( (TERM_COLS - box_w) / 2 ))
 
-    clear_region "$box_row" 0 "$TERM_COLS" "$box_h"
+    clear
     draw_box "$box_row" "$box_col" "$box_w" "$box_h" "$title"
 
     local inner_w=$((box_w - 4))
@@ -518,6 +538,35 @@ action_edit_env() {
 
 # --- Audio action ---
 
+# Ensure mixer settings will be reloaded at boot.
+# alsactl writes the saved state; the alsa-restore service reloads it on boot.
+# Sets REPLY to a human-readable reason and returns 1 if persistence is not
+# guaranteed (so stored volumes would silently revert after a reboot).
+ensure_alsa_restore() {
+    REPLY=""
+    if ! command -v alsactl &>/dev/null; then
+        REPLY="alsactl missing — install the 'alsa-utils' package."
+        return 1
+    fi
+    local unit status
+    for unit in alsa-restore.service alsa-state.service; do
+        status=$(systemctl is-enabled "$unit" 2>/dev/null) || status=""
+        case "$status" in
+            enabled|enabled-runtime|static|indirect)
+                return 0 ;;                      # will run at boot
+            disabled)
+                systemctl enable "$unit" &>/dev/null && return 0
+                REPLY="Could not enable ${unit}."
+                return 1 ;;
+            masked)
+                REPLY="${unit} is masked — run: systemctl unmask ${unit}"
+                return 1 ;;
+        esac
+    done
+    REPLY="No alsa-restore service found — saved volumes may not reload at boot."
+    return 1
+}
+
 action_alsamixer() {
     exit_tui
     if [[ -n "$USB_CARD" ]]; then
@@ -525,7 +574,18 @@ action_alsamixer() {
     else
         alsamixer || true
     fi
+    # Persist mixer levels so they survive a reboot.
+    if command -v alsactl &>/dev/null; then
+        if [[ -n "$USB_CARD" ]]; then
+            alsactl store "$USB_CARD" 2>/dev/null || true
+        else
+            alsactl store 2>/dev/null || true
+        fi
+    fi
     enter_tui
+    if ! ensure_alsa_restore; then
+        show_message "Audio" "$(printf 'Volumes saved, but may not persist\nacross reboot:\n\n%s' "$REPLY")"
+    fi
     NEEDS_REDRAW=1
 }
 
