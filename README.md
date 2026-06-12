@@ -37,7 +37,63 @@ sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx -o
 sudo svx
 ```
 
-## Screenshot
+## Screenshots
+
+Three front-ends are available: the classic `dialog` menu (`svx`) and two
+full-screen custom TUI layouts that share `svx-lib` — a tabbed view (`svx-tabs`)
+and a single-screen dashboard (`svx-dashboard`).
+
+### Dashboard (`svx-dashboard`)
+
+Single-screen overview — services, audio, disk, and live logs at a glance.
+
+```
+┌─ Svx Admin v2.0.0 ── repeater-pi ── 192.168.1.50 ─────────────────────────┐
+│ CPU: 48°C   Load: 0.42   Up: 3d 2h                                        │
+├──────────────────────────┬──────────────────────┬─────────────────────────┤
+│ SERVICES                 │ AUDIO (USB:1)        │ DISK                    │
+│ ● SvxLink      active    │ Mic  ██████░░ 72%    │ /      ██░░░░░ 31%      │
+│ ● RemoteTRX    active    │ Spkr ████░░░░ 55%    │ 31G / 100G              │
+│ ○ SvxReflector inactive  │ AGC  OFF             │                         │
+│                          │                      │ USB                     │
+│ TOP PROCS                │                      │ /media/usb  2.1G/15G    │
+│ svxlink      3.2%        │                      │                         │
+│ pulseaudio   1.1%        │                      │                         │
+├──────────────────────────┴──────────────────────┴─────────────────────────┤
+│ LOGS (SvxLink)                                                    ◀ ▶ svc │
+│ Apr 01 14:32:10 svxlink: Activating link to reflector                     │
+│ Apr 01 14:32:11 svxlink: Rx1: Squelch open                                │
+│ Apr 01 14:32:14 svxlink: Tx1: Transmitter ON                              │
+├───────────────────────────────────────────────────────────────────────────┤
+│ [T]art [S]top [R]estart re[L]oad [C]onf [G]PIO [A]lsa [B]oot [Q]          │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+### Tabs (`svx-tabs`)
+
+Tabbed layout — `Overview`, `Logs`, `Config`, and `Maintenance` on `[1-4]`.
+
+```
+┌─ Svx Admin v2.0.0 ── repeater-pi ── 192.168.1.50 ─────────────────────────┐
+│ CPU: 48°C  Load: 0.42  Up: 3d 2h   ● SvxLink  ● RemoteTRX  ○ SvxReflector │
+├───────────────────────────────────────────────────────────────────────────┤
+│  [OVERVIEW]     LOGS      CONFIG      MAINTENANCE                         │
+├─────────────────────────────────────┬─────────────────────────────────────┤
+│ SERVICES                            │ DISK                                │
+│ ● SvxLink       active              │ /      31G/100G  ██░░░░░ 31%        │
+│ ● RemoteTRX     active              │                                     │
+│ ○ SvxReflector  inactive            │ USB                                 │
+│                                     │ /media/usb       2.1G/15G           │
+│ AUDIO (USB:1)                       │                                     │
+│ Mic  ███████░░░ 72%                 │ TOP PROCS                           │
+│ Spkr ██████░░░░ 55%                 │ svxlink         3.2%                │
+│ AGC  OFF                            │ pulseaudio      1.1%                │
+├─────────────────────────────────────┴─────────────────────────────────────┤
+│ [T]art [S]top [R]estart re[L]oad [A]lsa                    [1-4] Tab  [Q] │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+### Classic menu (`svx`)
 
 ```
 ○ SvxLink  ○ RemoteTRX  ○ SvxReflector | 48°C  Up 3d 2h  Since 2026-03-28 14:30
