@@ -2,8 +2,10 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.4"
+readonly VERSION="2.1.5"
 readonly SCRIPT_NAME="Svx Admin"
+readonly REPO="audric/svxlink-cmd"
+readonly INSTALL_URL="https://raw.githubusercontent.com/${REPO}/master/install.sh"
 
 # --- Root check ---
 if [[ $EUID -ne 0 ]]; then
@@ -671,6 +673,43 @@ action_gpio_restart() {
         show_result "Error" "GPIO setup restart failed.\n\n${output}"
 }
 
+# Update svx (and svx-vumeter) to the latest release by re-running the published
+# installer. We're already root, so it can write to BINDIR. The running svx is
+# the old copy — the new version takes effect next launch.
+action_update() {
+    local avail output rc tmp
+    if ! command -v curl &>/dev/null; then
+        show_result "Update" "curl is required to update but was not found.\n\nInstall it with:\n  apt install curl"
+        return
+    fi
+
+    # Best-effort: read the VERSION line from the remote svx so we can show what
+    # the update would install. Empty if offline — we still offer to proceed.
+    avail=$(curl -fsSL "https://raw.githubusercontent.com/${REPO}/master/svx" 2>/dev/null \
+        | sed -n 's/^readonly VERSION="\(.*\)"/\1/p' | head -1)
+
+    confirm_yesno "Update" \
+        "Current version: $VERSION\nAvailable:       ${avail:-unknown}\n\nDownload and install the latest svx and svx-vumeter from GitHub?" \
+        || return
+
+    # Fetch the installer to a file first — piping curl straight into sh would
+    # feed curl's own error text to the shell if the download failed.
+    tmp=$(mktemp)
+    if ! curl -fsSL "$INSTALL_URL" -o "$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        show_result "Update" "Could not download the installer from:\n$INSTALL_URL\n\nCheck network connectivity."
+        return
+    fi
+    output=$(sh "$tmp" 2>&1); rc=$?
+    rm -f "$tmp"
+
+    if [[ $rc -eq 0 ]]; then
+        show_result "Update" "Update finished.\n\n${output}\n\nRestart svx to run the new version."
+    else
+        show_result "Update" "Update failed.\n\n${output}"
+    fi
+}
+
 # =============================================================================
 # Main Menu
 # =============================================================================
@@ -699,13 +738,14 @@ main_menu() {
         "12" "$(printf "%-${W}s" "RX level meter")"
         "13" "$(printf "%-${W}s" "Send ident (TX readback)")"
         "─6" "$(printf "%-${W}s" "─── Reflector ──────────")"
-        "18" "$(printf "%-${W}s" "Select talkgroup")"
+        "14" "$(printf "%-${W}s" "Select talkgroup")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
-        "14" "$(printf "%-${W}s" "Check log rotation")"
+        "15" "$(printf "%-${W}s" "Check log rotation")"
+        "16" "$(printf "%-${W}s" "Update svx to latest")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "15" "$(printf "%-${W}s" "Enable service at boot")"
-        "16" "$(printf "%-${W}s" "Disable service at boot")"
-        "17" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "17" "$(printf "%-${W}s" "Enable service at boot")"
+        "18" "$(printf "%-${W}s" "Disable service at boot")"
+        "19" "$(printf "%-${W}s" "Restart GPIO setup")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -713,14 +753,14 @@ main_menu() {
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-label "Quit" \
-            --menu "\nChoose an action:\n" 30 50 20 \
+            --menu "\nChoose an action:\n" 0 50 0 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     else
         whiptail \
             --title " $SCRIPT_NAME v$VERSION " \
             --backtitle "$status_title | $sysinfo" \
             --cancel-button "Quit" \
-            --menu "\nChoose an action:\n" 30 50 20 \
+            --menu "\nChoose an action:\n" 0 50 0 \
             "${menu_items[@]}" 2>"$DIALOG_OUT"
     fi
 }
@@ -747,11 +787,12 @@ while true; do
         11) action_alsamixer ;;
         12) action_rx_meter ;;
         13) action_send_ident ;;
-        18) action_select_tg ;;
-        14) action_check_logrotate ;;
-        15) action_enable ;;
-        16) action_disable ;;
-        17) action_gpio_restart ;;
+        14) action_select_tg ;;
+        15) action_check_logrotate ;;
+        16) action_update ;;
+        17) action_enable ;;
+        18) action_disable ;;
+        19) action_gpio_restart ;;
         *)  ;; # separator selected, ignore
     esac
 done
