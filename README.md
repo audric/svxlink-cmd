@@ -30,8 +30,7 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 
 ## Install
 
-One command installs the `svx` menu and the arch-matched `svx-vumeter` RX-meter
-binary (prebuilt, no compiler needed):
+One command installs everything — the `svx` menu and the audio meter:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/audric/svxlink-cmd/master/install.sh | sudo sh
@@ -51,15 +50,10 @@ without the edit → restart → key-up → listen loop:
 - **RX level meter** — a live VU bar of the capture input, so you can set the
   mic/capture gain while watching the level in real time (aim for peaks below
   clipping). It stops the SvxLink service for the session to free the capture
-  device and restarts it on exit. This item runs the **`svx-vumeter`** binary,
-  which the [Install](#install) one-liner already put in place. (Maintainers can
-  build it from [`vumeter/`](vumeter/) with `make`; releases are cross-compiled
-  automatically by GitHub Actions.)
+  device and restarts it on exit.
 
 - **Send ident (TX readback)** — makes the repeater transmit a known readback
   on demand, so you can check TX level / deviation on the air or an analyzer.
-  It writes a DTMF command to the logic's control PTY, which it discovers from
-  your config (`DTMF_CTRL_PTY=`) rather than assuming a fixed path.
 
 ## Screenshot
 
