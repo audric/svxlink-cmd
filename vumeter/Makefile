@@ -36,9 +36,13 @@ else
 $(error unknown ARCH '$(ARCH)' — use armv6, armv7, arm64 or amd64)
 endif
 
+# Single source of truth for the version: the svx script's VERSION (so there is
+# no second number to keep in sync). Injected into the binary via -X.
+VERSION := $(shell sed -n 's/.*readonly VERSION="\([^"]*\)".*/\1/p' ../svx 2>/dev/null)
+
 # -s -w strips the symbol table and DWARF debug info at link time, so the
 # resulting binary is stripped (no separate strip(1) / cross-strip needed).
-LDFLAGS := -s -w
+LDFLAGS := -s -w $(if $(VERSION),-X main.version=$(VERSION))
 BUILD    = GOOS=linux GOARCH=$(1) $(if $(2),GOARM=$(2)) CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(3) .
 
 .PHONY: all native deploy release clean

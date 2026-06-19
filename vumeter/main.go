@@ -49,6 +49,10 @@ const (
 	keyLeft  = 0x84
 )
 
+// version is injected at build time via -ldflags "-X main.version=..." (set by
+// the Makefile from the svx script's VERSION); "dev" for a plain `go build`.
+var version = "dev"
+
 // shared level state, written by the audio reader, read by the renderer
 var (
 	mu       sync.Mutex
@@ -60,9 +64,8 @@ var (
 
 // printHelp writes a full, friendly help text (what it does + keys + options).
 func printHelp(w *os.File) {
-	fmt.Fprint(w, `svx-vumeter — live RX audio-level meter for SvxLink calibration
-
-Usage:
+	fmt.Fprintf(w, "svx-vumeter %s — live RX audio-level meter for SvxLink calibration\n\n", version)
+	fmt.Fprint(w, `Usage:
   svx-vumeter [options]
 
 Shows a live VU bar of the capture (RX) input so you can set the mic/capture
@@ -84,8 +87,12 @@ Options:
 func main() {
 	flag.Usage = func() { printHelp(os.Stderr) }
 	for _, a := range os.Args[1:] {
-		if a == "-h" || a == "-help" || a == "--help" {
+		switch a {
+		case "-h", "-help", "--help":
 			printHelp(os.Stdout)
+			return
+		case "-v", "-V", "-version", "--version":
+			fmt.Println("svx-vumeter", version)
 			return
 		}
 	}
@@ -286,7 +293,7 @@ func render(cur, hold float64, clip bool, rxPct, txPct, dead string) {
 	var b strings.Builder
 	b.WriteString("\033[H") // cursor home
 
-	b.WriteString("\033[1m svx-vumeter\033[0m — RX input level   (q quit)\n")
+	b.WriteString("\033[1m svx-vumeter " + version + "\033[0m — RX input level   (q quit)\n")
 	b.WriteString("\033[K\n")
 
 	if dead != "" {
