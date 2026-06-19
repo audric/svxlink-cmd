@@ -30,8 +30,11 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 
 ## Install
 
+One command installs the `svx` menu and the arch-matched `svx-vumeter` RX-meter
+binary (prebuilt, no compiler needed):
+
 ```bash
-sudo curl -sL https://raw.githubusercontent.com/audric/svxlink-cmd/master/svx -o /usr/local/bin/svx && sudo chmod +x /usr/local/bin/svx
+curl -fsSL https://raw.githubusercontent.com/audric/svxlink-cmd/master/install.sh | sudo sh
 ```
 
 ## Usage
@@ -48,14 +51,10 @@ without the edit → restart → key-up → listen loop:
 - **RX level meter** — a live VU bar of the capture input, so you can set the
   mic/capture gain while watching the level in real time (aim for peaks below
   clipping). It stops the SvxLink service for the session to free the capture
-  device and restarts it on exit. This item runs the optional **`svx-vumeter`**
-  binary — a small static Go program under [`vumeter/`](vumeter/); build it for
-  your Pi and install it to `/usr/local/bin/svx-vumeter`:
-
-  ```bash
-  cd vumeter && make           # cross-compile for Raspberry Pi (armv7)
-  # then copy ./svx-vumeter to the Pi's /usr/local/bin/
-  ```
+  device and restarts it on exit. This item runs the **`svx-vumeter`** binary,
+  which the [Install](#install) one-liner already put in place. (Maintainers can
+  build it from [`vumeter/`](vumeter/) with `make`; releases are cross-compiled
+  automatically by GitHub Actions.)
 
 - **Send ident (TX readback)** — makes the repeater transmit a known readback
   on demand, so you can check TX level / deviation on the air or an analyzer.

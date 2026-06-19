@@ -1,0 +1,41 @@
+name: release
+
+# Cross-compile svx-vumeter for every Pi architecture and attach the binaries
+# to the GitHub release, so users install a prebuilt binary (no compiler).
+#
+# Triggers on a pushed version tag (v*), or manually for an existing tag:
+#   gh workflow run release.yml -f tag=v2.1.0
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to attach the binaries to'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+
+      - name: Cross-compile binaries
+        working-directory: vumeter
+        run: make release
+
+      - name: Publish to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: vumeter/svx-vumeter-linux-*
+          fail_on_unmatched_files: true

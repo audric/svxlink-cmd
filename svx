@@ -416,7 +416,7 @@ action_rx_meter() {
     bin=$(command -v svx-vumeter) || bin="/usr/local/bin/svx-vumeter"
     if [[ ! -x "$bin" ]]; then
         show_result "RX level meter" \
-            "svx-vumeter is not installed.\n\nBuild it from the repo (vumeter/) and copy the binary to:\n/usr/local/bin/svx-vumeter"
+            "svx-vumeter is not installed.\n\nInstall it (and refresh svx) with:\n\n  curl -fsSL https://raw.githubusercontent.com/audric/svxlink-cmd/master/install.sh | sudo sh"
         return
     fi
     # Point the meter at the detected USB audio card (defaults to card 1).
