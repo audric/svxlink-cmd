@@ -38,7 +38,7 @@ endif
 
 # Single source of truth for the version: the svx script's VERSION (so there is
 # no second number to keep in sync). Injected into the binary via -X.
-VERSION := $(shell sed -n 's/.*readonly VERSION="\([^"]*\)".*/\1/p' ../svx 2>/dev/null)
+VERSION := $(shell sed -n 's/^readonly VERSION="\([^"]*\)".*/\1/p' ../svx 2>/dev/null | head -1)
 
 # -s -w strips the symbol table and DWARF debug info at link time, so the
 # resulting binary is stripped (no separate strip(1) / cross-strip needed).

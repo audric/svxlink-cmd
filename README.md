@@ -59,7 +59,7 @@ without the edit → restart → key-up → listen loop:
 
 ```
 ○ SvxLink  ○ RemoteTRX  ○ SvxReflector | 48°C  Up 3d 2h  Since 2026-03-28 14:30
-┌──────────── Svx Admin v2.1.7 ────────────┐
+┌──────────── Svx Admin v2.1.8 ────────────┐
 │                                           │
 │  Choose an action:                        │
 │ ┌───────────────────────────────────────┐ │

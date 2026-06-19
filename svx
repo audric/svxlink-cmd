@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.7"
+readonly VERSION="2.1.8"
 readonly SCRIPT_NAME="Svx Admin"
 readonly REPO="audric/svxlink-cmd"
 readonly INSTALL_URL="https://raw.githubusercontent.com/${REPO}/master/install.sh"
