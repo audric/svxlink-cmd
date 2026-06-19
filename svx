@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.2"
+readonly VERSION="2.1.3"
 readonly SCRIPT_NAME="Svx Admin"
 
 # --- Root check ---
@@ -241,14 +241,17 @@ show_result() {
     fi
 }
 
-# Yes/No prompt. Returns 0 on Yes, non-zero otherwise.
+# Yes/No prompt. Returns 0 on Yes, non-zero otherwise. A third arg of
+# "defaultno" pre-selects No (use it for actions that interrupt service).
 confirm_yesno() {
     local title="$1"
     local msg="$2"
+    local extra=()
+    [[ "${3:-}" == "defaultno" ]] && extra=(--defaultno)
     if [[ "$DIALOG" == "dialog" ]]; then
-        dialog --colors --no-shadow --title "$title" --yesno "$msg" 12 60
+        dialog --colors --no-shadow --title "$title" "${extra[@]}" --yesno "$msg" 12 60
     else
-        whiptail --title "$title" --yesno "$msg" 12 60
+        whiptail --title "$title" "${extra[@]}" --yesno "$msg" 12 60
     fi
 }
 
@@ -446,6 +449,9 @@ action_rx_meter() {
             "svx-vumeter is not installed.\n\nInstall it (and refresh svx) with:\n\n  curl -fsSL https://raw.githubusercontent.com/audric/svxlink-cmd/master/install.sh | sudo sh"
         return
     fi
+    confirm_yesno "RX level meter" \
+        "This STOPS SvxLink for the session — the repeater goes off the air — and restarts it when you quit the meter (q).\n\nProceed?" \
+        defaultno || return
     # Use exactly the device SvxLink receives on; fall back to the first USB card.
     local dev card args=(-stop svxlink)
     dev=$(rx_audio_dev)
