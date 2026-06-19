@@ -10,6 +10,8 @@ Interactive terminal tool for administering [SvxLink](https://github.com/sm0svx/
 - Enable / Disable services at boot
 - GPIO setup restart
 - Alsamixer integration (auto-detects USB audio device)
+- Live RX input-level meter (VU bar) for setting capture gain — optional `svx-vumeter` helper
+- Send the repeater ident on demand — transmits a known signal for TX/deviation checks
 - Log rotation check and auto-fix
 - Live system info: service status, CPU temperature, uptime, last boot
 
@@ -59,6 +61,28 @@ sudo svx-tabs       # tabbed TUI
 sudo svx-dashboard  # single-screen dashboard
 ```
 
+## Audio calibration
+
+Two helpers under the **Audio** menu make it easier to set RX and TX levels
+without the edit → restart → key-up → listen loop:
+
+- **RX level meter** — a live VU bar of the capture input, so you can set the
+  mic/capture gain while watching the level in real time (aim for peaks below
+  clipping). It stops the SvxLink service for the session to free the capture
+  device and restarts it on exit. This item runs the optional **`svx-vumeter`**
+  binary — a small static Go program under [`vumeter/`](vumeter/); build it for
+  your Pi and install it to `/usr/local/bin/svx-vumeter`:
+
+  ```bash
+  cd vumeter && make           # cross-compile for Raspberry Pi (armv7)
+  # then copy ./svx-vumeter to the Pi's /usr/local/bin/
+  ```
+
+- **Send ident (TX readback)** — makes the repeater transmit a known readback
+  on demand, so you can check TX level / deviation on the air or an analyzer.
+  It writes a DTMF command to the logic's control PTY, which it discovers from
+  your config (`DTMF_CTRL_PTY=`) rather than assuming a fixed path.
+
 ## Screenshots
 
 Three front-ends are available: the classic `dialog` menu (`svx`) and two
@@ -71,7 +95,7 @@ Preferred by the author, and the version installed by the one-line installer abo
 
 ```
 ○ SvxLink  ○ RemoteTRX  ○ SvxReflector | 48°C  Up 3d 2h  Since 2026-03-28 14:30
-┌──────────── Svx Admin v2.0.0 ────────────┐
+┌──────────── Svx Admin v2.1.0 ────────────┐
 │                                           │
 │  Choose an action:                        │
 │ ┌───────────────────────────────────────┐ │
@@ -82,18 +106,21 @@ Preferred by the author, and the version installed by the one-line installer abo
 │ │  ─  ─── Monitoring ─────────          │ │
 │ │  5  Show detailed status              │ │
 │ │  6  Follow live logs                  │ │
+│ │  7  System health check               │ │
 │ │  ─  ─── Configuration ──────          │ │
-│ │  7  Edit config file                  │ │
-│ │  8  Edit GPIO config                  │ │
-│ │  9  Edit environment defaults         │ │
+│ │  8  Edit config file                  │ │
+│ │  9  Edit GPIO config                  │ │
+│ │ 10  Edit environment defaults         │ │
 │ │  ─  ─── Audio ──────────────          │ │
-│ │ 10  Alsamixer                         │ │
+│ │ 11  Alsamixer                         │ │
+│ │ 12  RX level meter                    │ │
+│ │ 13  Send ident (TX readback)          │ │
 │ │  ─  ─── Maintenance ────────          │ │
-│ │ 11  Check log rotation                │ │
+│ │ 14  Check log rotation                │ │
 │ │  ─  ─── Boot & GPIO ────────          │ │
-│ │ 12  Enable service at boot            │ │
-│ │ 13  Disable service at boot           │ │
-│ │ 14  Restart GPIO setup                │ │
+│ │ 15  Enable service at boot            │ │
+│ │ 16  Disable service at boot           │ │
+│ │ 17  Restart GPIO setup                │ │
 │ └───────────────────────────────────────┘ │
 │          <OK>          <Quit>             │
 └───────────────────────────────────────────┘
@@ -104,7 +131,7 @@ Preferred by the author, and the version installed by the one-line installer abo
 Single-screen overview — services, audio, disk, and live logs at a glance.
 
 ```
-┌─ Svx Admin v2.0.0 ── repeater-pi ── 192.168.1.50 ─────────────────────────┐
+┌─ Svx Admin v2.1.0 ── repeater-pi ── 192.168.1.50 ─────────────────────────┐
 │ CPU: 48°C   Load: 0.42   Up: 3d 2h                                        │
 ├──────────────────────────┬──────────────────────┬─────────────────────────┤
 │ SERVICES                 │ AUDIO (USB:1)        │ DISK                    │
@@ -130,7 +157,7 @@ Single-screen overview — services, audio, disk, and live logs at a glance.
 Tabbed layout — `Overview`, `Logs`, `Config`, and `Maintenance` on `[1-4]`.
 
 ```
-┌─ Svx Admin v2.0.0 ── repeater-pi ── 192.168.1.50 ─────────────────────────┐
+┌─ Svx Admin v2.1.0 ── repeater-pi ── 192.168.1.50 ─────────────────────────┐
 │ CPU: 48°C  Load: 0.42  Up: 3d 2h   ● SvxLink  ● RemoteTRX  ○ SvxReflector │
 ├───────────────────────────────────────────────────────────────────────────┤
 │  [OVERVIEW]     LOGS      CONFIG      MAINTENANCE                         │

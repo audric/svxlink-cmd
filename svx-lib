@@ -5,7 +5,7 @@
 [[ -n "${_SVX_LIB_LOADED:-}" ]] && return 0
 readonly _SVX_LIB_LOADED=1
 
-readonly SVX_VERSION="2.0.0"
+readonly SVX_VERSION="2.1.0"
 readonly SVX_NAME="Svx Admin"
 
 # --- Colors (ANSI) ---

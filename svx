@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.0.0"
+readonly VERSION="2.1.0"
 readonly SCRIPT_NAME="Svx Admin"
 
 # --- Root check ---
@@ -132,6 +132,10 @@ declare -A LOG_FILES=(
 
 readonly GPIO_CONF="/etc/svxlink/gpio.conf"
 
+# DTMF command written to the logic's DTMF_CTRL_PTY to make the repeater
+# transmit (default '*#' = ~16 s voice status/ident readback).
+readonly IDENT_CMD="*#"
+
 # Get service status as a word: active, inactive, failed, unknown
 get_service_status() {
     local st
@@ -234,6 +238,17 @@ show_result() {
         dialog --colors --no-shadow --title "$title" --msgbox "$msg" 15 60
     else
         whiptail --title "$title" --msgbox "$msg" 15 60
+    fi
+}
+
+# Yes/No prompt. Returns 0 on Yes, non-zero otherwise.
+confirm_yesno() {
+    local title="$1"
+    local msg="$2"
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title "$title" --yesno "$msg" 12 60
+    else
+        whiptail --title "$title" --yesno "$msg" 12 60
     fi
 }
 
@@ -394,6 +409,101 @@ action_alsamixer() {
     fi
 }
 
+# Live RX input-level meter (external svx-vumeter binary). It frees the capture
+# device by stopping svxlink for the session and restarts it again on exit.
+action_rx_meter() {
+    local bin
+    bin=$(command -v svx-vumeter) || bin="/usr/local/bin/svx-vumeter"
+    if [[ ! -x "$bin" ]]; then
+        show_result "RX level meter" \
+            "svx-vumeter is not installed.\n\nBuild it from the repo (vumeter/) and copy the binary to:\n/usr/local/bin/svx-vumeter"
+        return
+    fi
+    # Point the meter at the detected USB audio card (defaults to card 1).
+    local usb_card="" args=(-stop svxlink)
+    if [[ -f /proc/asound/cards ]]; then
+        usb_card=$(awk '/USB-Audio/{print $1; exit}' /proc/asound/cards)
+    fi
+    if [[ -n "$usb_card" ]]; then
+        args+=(-c "$usb_card" -D "plughw:${usb_card},0")
+    fi
+    clear
+    "$bin" "${args[@]}" || true
+}
+
+# Discover every DTMF_CTRL_PTY path configured for SvxLink. The PTY name is
+# per-logic and differs between systems, and logics may be split across
+# included *.conf files — so never hardcode it; scan the config(s).
+discover_ctrl_ptys() {
+    local conf="${CONFIG_FILES[svxlink]}"
+    local dir; dir=$(dirname "$conf")
+    local files=() f
+    [[ -f "$conf" ]] && files+=("$conf")
+    for f in "$dir"/*.conf "$dir"/*.d/*.conf; do
+        [[ -f "$f" && "$f" != "$conf" ]] && files+=("$f")
+    done
+    (( ${#files[@]} )) || return 0
+    # Pull the value, strip inline comments/whitespace, de-duplicate.
+    sed -n 's/^[[:space:]]*DTMF_CTRL_PTY[[:space:]]*=[[:space:]]*\([^[:space:]#]*\).*/\1/p' \
+        "${files[@]}" 2>/dev/null | awk 'NF && !seen[$0]++'
+}
+
+# Make the repeater transmit by writing IDENT_CMD to a logic's DTMF_CTRL_PTY.
+# The PTY is mode 600 and owned by the svxlink user, so write as its owner.
+action_send_ident() {
+    local pty owner all=() present=() p
+    mapfile -t all < <(discover_ctrl_ptys)
+    if (( ${#all[@]} == 0 )); then
+        show_result "Send ident" \
+            "No DTMF_CTRL_PTY configured for svxlink.\n\nAdd e.g.\n  DTMF_CTRL_PTY=/tmp/RepeaterLogic.pty\nto your logic section and restart svxlink."
+        return
+    fi
+    # Note: -L (lstat) as well as -e, because the PTY is usually a symlink owned
+    # by the svxlink user in /tmp; with fs.protected_symlinks set, root cannot
+    # follow it, so a plain -e would wrongly report it missing.
+    for p in "${all[@]}"; do [[ -e "$p" || -L "$p" ]] && present+=("$p"); done
+    if (( ${#present[@]} == 0 )); then
+        show_result "Send ident" \
+            "DTMF_CTRL_PTY is configured but not present:\n${all[*]}\n\nIs svxlink running with the logic loaded?"
+        return
+    fi
+
+    if (( ${#present[@]} == 1 )); then
+        pty="${present[0]}"
+    else
+        # Several logics expose a PTY — let the user choose which to key.
+        local items=() i
+        for i in "${!present[@]}"; do items+=("$i" "${present[$i]}"); done
+        if [[ "$DIALOG" == "dialog" ]]; then
+            dialog --colors --no-shadow --title " Send ident " \
+                --menu "\nChoose which logic's control PTY:\n" 15 60 6 "${items[@]}" 2>"$DIALOG_OUT" || return
+        else
+            whiptail --title " Send ident " \
+                --menu "\nChoose which logic's control PTY:\n" 15 60 6 "${items[@]}" 2>"$DIALOG_OUT" || return
+        fi
+        pty="${present[$(cat "$DIALOG_OUT")]}"
+        [[ -n "$pty" ]] || return
+    fi
+
+    confirm_yesno "Send ident" \
+        "Send '$IDENT_CMD' to:\n$pty\n\nThis keys the transmitter ON the air." || return
+
+    # Deliver the command. Try a direct write first — that succeeds when we
+    # already own the PTY (e.g. a root-owned PTY while running as root). Only
+    # if that's denied fall back to writing as the PTY's owner, since the pts
+    # is mode 600 and root cannot always write to a slave owned by another
+    # user (e.g. svxlink running under its own service account).
+    owner=$(stat -c %U "$pty" 2>/dev/null)
+    # 2>/dev/null comes first so a failed-redirection error (root blocked from
+    # following the svxlink-owned symlink) is swallowed, not printed over the TUI.
+    if printf %s "$IDENT_CMD" 2>/dev/null > "$pty" \
+       || { [[ -n "$owner" ]] && su -s /bin/sh "$owner" -c "printf %s '$IDENT_CMD' > '$pty'" 2>/dev/null; }; then
+        show_result "Send ident" "Sent '$IDENT_CMD' — the repeater should transmit its readback now."
+    else
+        show_result "Send ident" "Failed to write '$IDENT_CMD' to:\n$pty\n(owner '${owner:-unknown}'). Try running svx as root."
+    fi
+}
+
 readonly LOGROTATE_CONF="/etc/logrotate.d/svxlink"
 readonly LOGROTATE_CONTENT="/var/log/svxlink
 /var/log/remotetrx
@@ -499,12 +609,14 @@ main_menu() {
         "10" "$(printf "%-${W}s" "Edit environment defaults")"
         "─3" "$(printf "%-${W}s" "─── Audio ──────────────")"
         "11" "$(printf "%-${W}s" "Alsamixer")"
+        "12" "$(printf "%-${W}s" "RX level meter")"
+        "13" "$(printf "%-${W}s" "Send ident (TX readback)")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
-        "12" "$(printf "%-${W}s" "Check log rotation")"
+        "14" "$(printf "%-${W}s" "Check log rotation")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "13" "$(printf "%-${W}s" "Enable service at boot")"
-        "14" "$(printf "%-${W}s" "Disable service at boot")"
-        "15" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "15" "$(printf "%-${W}s" "Enable service at boot")"
+        "16" "$(printf "%-${W}s" "Disable service at boot")"
+        "17" "$(printf "%-${W}s" "Restart GPIO setup")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -544,10 +656,12 @@ while true; do
         9)  action_edit_gpio ;;
         10) action_edit_env ;;
         11) action_alsamixer ;;
-        12) action_check_logrotate ;;
-        13) action_enable ;;
-        14) action_disable ;;
-        15) action_gpio_restart ;;
+        12) action_rx_meter ;;
+        13) action_send_ident ;;
+        14) action_check_logrotate ;;
+        15) action_enable ;;
+        16) action_disable ;;
+        17) action_gpio_restart ;;
         *)  ;; # separator selected, ignore
     esac
 done
