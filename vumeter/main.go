@@ -58,7 +58,37 @@ var (
 	recDead  string // non-empty if arecord exited (e.g. device busy)
 )
 
+// printHelp writes a full, friendly help text (what it does + keys + options).
+func printHelp(w *os.File) {
+	fmt.Fprint(w, `svx-vumeter — live RX audio-level meter for SvxLink calibration
+
+Usage:
+  svx-vumeter [options]
+
+Shows a live VU bar of the capture (RX) input so you can set the mic/capture
+gain while watching the level (aim for peaks just below clipping). SvxLink holds
+the sound card, so stop it first or pass "-stop svxlink" to free the device.
+
+Keys:
+  + / -   (or up / down arrows)      adjust RX gain  (Mic capture)
+  , / .   (or left / right arrows)   adjust TX level (Speaker)
+  p                                  reset the peak-hold marker
+  q                                  quit
+
+Options:
+`)
+	flag.CommandLine.SetOutput(w)
+	flag.PrintDefaults()
+}
+
 func main() {
+	flag.Usage = func() { printHelp(os.Stderr) }
+	for _, a := range os.Args[1:] {
+		if a == "-h" || a == "-help" || a == "--help" {
+			printHelp(os.Stdout)
+			return
+		}
+	}
 	flag.Parse()
 
 	// Optionally free the sound card by stopping a service for the session.

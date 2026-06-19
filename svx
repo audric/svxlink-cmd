@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.0"
+readonly VERSION="2.1.1"
 readonly SCRIPT_NAME="Svx Admin"
 
 # --- Root check ---
@@ -386,6 +386,23 @@ ensure_alsa_restore() {
     return 1
 }
 
+# Save current mixer levels (optionally for one card) so they survive a reboot,
+# and make sure the alsa-restore service will reload them at boot. amixer changes
+# are otherwise in-memory only and lost on the next boot.
+persist_alsa_volumes() {
+    local card="${1:-}"
+    if command -v alsactl &>/dev/null; then
+        if [[ -n "$card" ]]; then
+            alsactl store "$card" 2>/dev/null || true
+        else
+            alsactl store 2>/dev/null || true
+        fi
+    fi
+    if ! ensure_alsa_restore; then
+        show_result "Audio" "Volumes saved, but may not persist across reboot:\n\n${REPLY}"
+    fi
+}
+
 action_alsamixer() {
     local usb_card=""
     if [[ -f /proc/asound/cards ]]; then
@@ -396,21 +413,31 @@ action_alsamixer() {
     else
         alsamixer || true
     fi
-    # Persist mixer levels so they survive a reboot.
-    if command -v alsactl &>/dev/null; then
-        if [[ -n "$usb_card" ]]; then
-            alsactl store "$usb_card" 2>/dev/null || true
-        else
-            alsactl store 2>/dev/null || true
-        fi
-    fi
-    if ! ensure_alsa_restore; then
-        show_result "Audio" "Volumes saved, but may not persist across reboot:\n\n${REPLY}"
-    fi
+    persist_alsa_volumes "$usb_card"
 }
 
+# The ALSA capture device SvxLink's receiver actually uses, read from its config
+# (the first [Rx*] section's AUDIO_DEV, minus the "alsa:" prefix). This is the
+# authoritative source — card *indices* can shuffle across reboots, so a USB
+# heuristic can point at the wrong card; SvxLink's own setting cannot.
+rx_audio_dev() {
+    awk '
+        /^\[Rx[0-9]*\]/ { inrx = 1; next }
+        /^\[/           { inrx = 0 }
+        inrx && /^[[:space:]]*AUDIO_DEV[[:space:]]*=/ {
+            sub(/^[[:space:]]*AUDIO_DEV[[:space:]]*=[[:space:]]*/, "")
+            sub(/[[:space:]]*#.*/, ""); sub(/^alsa:/, ""); sub(/[[:space:]]+$/, "")
+            print; exit
+        }' "${CONFIG_FILES[svxlink]}" 2>/dev/null
+}
+
+# Extract the card token (index or CARD=name) from an ALSA device string,
+# e.g. plughw:1,0 -> 1   plughw:CARD=Device,0 -> Device   (for amixer/alsactl -c).
+dev_card() { printf '%s' "$1" | sed -E 's/^(plug)?hw://; s/,.*//; s/^CARD=//'; }
+
 # Live RX input-level meter (external svx-vumeter binary). It frees the capture
-# device by stopping svxlink for the session and restarts it again on exit.
+# device by stopping svxlink for the session and restarts it again on exit, then
+# saves the levels so they persist across reboots.
 action_rx_meter() {
     local bin
     bin=$(command -v svx-vumeter) || bin="/usr/local/bin/svx-vumeter"
@@ -419,16 +446,21 @@ action_rx_meter() {
             "svx-vumeter is not installed.\n\nInstall it (and refresh svx) with:\n\n  curl -fsSL https://raw.githubusercontent.com/audric/svxlink-cmd/master/install.sh | sudo sh"
         return
     fi
-    # Point the meter at the detected USB audio card (defaults to card 1).
-    local usb_card="" args=(-stop svxlink)
-    if [[ -f /proc/asound/cards ]]; then
-        usb_card=$(awk '/USB-Audio/{print $1; exit}' /proc/asound/cards)
+    # Use exactly the device SvxLink receives on; fall back to the first USB card.
+    local dev card args=(-stop svxlink)
+    dev=$(rx_audio_dev)
+    if [[ -z "$dev" && -f /proc/asound/cards ]]; then
+        local usb; usb=$(awk '/USB-Audio/{print $1; exit}' /proc/asound/cards)
+        [[ -n "$usb" ]] && dev="plughw:${usb},0"
     fi
-    if [[ -n "$usb_card" ]]; then
-        args+=(-c "$usb_card" -D "plughw:${usb_card},0")
+    if [[ -n "$dev" ]]; then
+        card=$(dev_card "$dev")
+        args+=(-D "$dev" -c "$card")
     fi
     clear
     "$bin" "${args[@]}" || true
+    # amixer changes are in-memory only — save them so a reboot keeps them.
+    persist_alsa_volumes "$card"
 }
 
 # Discover every DTMF_CTRL_PTY path configured for SvxLink. The PTY name is
