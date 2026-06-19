@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.5"
+readonly VERSION="2.1.6"
 readonly SCRIPT_NAME="Svx Admin"
 readonly REPO="audric/svxlink-cmd"
 readonly INSTALL_URL="https://raw.githubusercontent.com/${REPO}/master/install.sh"
@@ -593,6 +593,24 @@ action_select_tg() {
     fi
 }
 
+# Disconnect from the reflector talkgroup by selecting TG 0 — the standard
+# SvxLink "leave talkgroup" action (sends <TG_SELECT_PREFIX>0#).
+action_disconnect_reflector() {
+    local pty owner cmd
+    pty=$(pick_ctrl_pty "Disconnect reflector") || return
+
+    cmd="${TG_SELECT_PREFIX}0#"
+    confirm_yesno "Disconnect reflector" \
+        "Send '$cmd' to:\n$pty\n\nThis leaves the current talkgroup (selects TG 0)." || return
+
+    if deliver_to_pty "$cmd" "$pty"; then
+        show_result "Disconnect reflector" "Sent '$cmd' — disconnected from the talkgroup."
+    else
+        owner=$(stat -c %U "$pty" 2>/dev/null)
+        show_result "Disconnect reflector" "Failed to write '$cmd' to:\n$pty\n(owner '${owner:-unknown}'). Try running svx as root."
+    fi
+}
+
 readonly LOGROTATE_CONF="/etc/logrotate.d/svxlink"
 readonly LOGROTATE_CONTENT="/var/log/svxlink
 /var/log/remotetrx
@@ -739,13 +757,14 @@ main_menu() {
         "13" "$(printf "%-${W}s" "Send ident (TX readback)")"
         "─6" "$(printf "%-${W}s" "─── Reflector ──────────")"
         "14" "$(printf "%-${W}s" "Select talkgroup")"
+        "15" "$(printf "%-${W}s" "Disconnect reflector")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
-        "15" "$(printf "%-${W}s" "Check log rotation")"
-        "16" "$(printf "%-${W}s" "Update svx to latest")"
+        "16" "$(printf "%-${W}s" "Check log rotation")"
+        "17" "$(printf "%-${W}s" "Update svxadmin to latest")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
-        "17" "$(printf "%-${W}s" "Enable service at boot")"
-        "18" "$(printf "%-${W}s" "Disable service at boot")"
-        "19" "$(printf "%-${W}s" "Restart GPIO setup")"
+        "18" "$(printf "%-${W}s" "Enable service at boot")"
+        "19" "$(printf "%-${W}s" "Disable service at boot")"
+        "20" "$(printf "%-${W}s" "Restart GPIO setup")"
     )
 
     if [[ "$DIALOG" == "dialog" ]]; then
@@ -788,11 +807,12 @@ while true; do
         12) action_rx_meter ;;
         13) action_send_ident ;;
         14) action_select_tg ;;
-        15) action_check_logrotate ;;
-        16) action_update ;;
-        17) action_enable ;;
-        18) action_disable ;;
-        19) action_gpio_restart ;;
+        15) action_disconnect_reflector ;;
+        16) action_check_logrotate ;;
+        17) action_update ;;
+        18) action_enable ;;
+        19) action_disable ;;
+        20) action_gpio_restart ;;
         *)  ;; # separator selected, ignore
     esac
 done

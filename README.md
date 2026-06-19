@@ -59,7 +59,7 @@ without the edit → restart → key-up → listen loop:
 
 ```
 ○ SvxLink  ○ RemoteTRX  ○ SvxReflector | 48°C  Up 3d 2h  Since 2026-03-28 14:30
-┌──────────── Svx Admin v2.1.5 ────────────┐
+┌──────────── Svx Admin v2.1.6 ────────────┐
 │                                           │
 │  Choose an action:                        │
 │ ┌───────────────────────────────────────┐ │
@@ -81,13 +81,14 @@ without the edit → restart → key-up → listen loop:
 │ │ 13  Send ident (TX readback)          │ │
 │ │  ─  ─── Reflector ──────────          │ │
 │ │ 14  Select talkgroup                  │ │
+│ │ 15  Disconnect reflector              │ │
 │ │  ─  ─── Maintenance ────────          │ │
-│ │ 15  Check log rotation                │ │
-│ │ 16  Update svx to latest              │ │
+│ │ 16  Check log rotation                │ │
+│ │ 17  Update svxadmin to latest         │ │
 │ │  ─  ─── Boot & GPIO ────────          │ │
-│ │ 17  Enable service at boot            │ │
-│ │ 18  Disable service at boot           │ │
-│ │ 19  Restart GPIO setup                │ │
+│ │ 18  Enable service at boot            │ │
+│ │ 19  Disable service at boot           │ │
+│ │ 20  Restart GPIO setup                │ │
 │ └───────────────────────────────────────┘ │
 │          <OK>          <Quit>             │
 └───────────────────────────────────────────┘
