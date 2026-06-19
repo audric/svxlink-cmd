@@ -2,10 +2,13 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.6"
+readonly VERSION="2.1.7"
 readonly SCRIPT_NAME="Svx Admin"
 readonly REPO="audric/svxlink-cmd"
 readonly INSTALL_URL="https://raw.githubusercontent.com/${REPO}/master/install.sh"
+# Absolute path to this running script, so the self-update can re-exec the new
+# copy the installer writes over it (otherwise we'd keep running the old one).
+readonly SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "$0")"
 
 # --- Root check ---
 if [[ $EUID -ne 0 ]]; then
@@ -692,8 +695,8 @@ action_gpio_restart() {
 }
 
 # Update svx (and svx-vumeter) to the latest release by re-running the published
-# installer. We're already root, so it can write to BINDIR. The running svx is
-# the old copy — the new version takes effect next launch.
+# installer. We're already root, so it can write to BINDIR. On success it offers
+# to re-exec the freshly installed script so the new version takes effect now.
 action_update() {
     local avail output rc tmp
     if ! command -v curl &>/dev/null; then
@@ -722,7 +725,14 @@ action_update() {
     rm -f "$tmp"
 
     if [[ $rc -eq 0 ]]; then
-        show_result "Update" "Update finished.\n\n${output}\n\nRestart svx to run the new version."
+        # The installer overwrote this script on disk, but we're still running the
+        # old copy in memory. Re-exec the new one so it takes effect immediately;
+        # if the user declines, the change applies on the next manual launch.
+        if confirm_yesno "Update" "Update finished.\n\n${output}\n\nRestart now to load the new version?"; then
+            clear
+            exec "$SELF"
+        fi
+        show_result "Update" "Update installed.\n\nIt will take effect next time you start svx."
     else
         show_result "Update" "Update failed.\n\n${output}"
     fi
