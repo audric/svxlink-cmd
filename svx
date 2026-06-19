@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.3"
+readonly VERSION="2.1.4"
 readonly SCRIPT_NAME="Svx Admin"
 
 # --- Root check ---
@@ -135,6 +135,10 @@ readonly GPIO_CONF="/etc/svxlink/gpio.conf"
 # DTMF command written to the logic's DTMF_CTRL_PTY to make the repeater
 # transmit (default '*#' = ~16 s voice status/ident readback).
 readonly IDENT_CMD="*#"
+
+# DTMF prefix for reflector talkgroup selection. The full sequence sent is
+# <prefix><tg># — e.g. selecting TG 91 sends '9191#'.
+readonly TG_SELECT_PREFIX="91"
 
 # Get service status as a word: active, inactive, failed, unknown
 get_service_status() {
@@ -486,59 +490,104 @@ discover_ctrl_ptys() {
         "${files[@]}" 2>/dev/null | awk 'NF && !seen[$0]++'
 }
 
-# Make the repeater transmit by writing IDENT_CMD to a logic's DTMF_CTRL_PTY.
-# The PTY is mode 600 and owned by the svxlink user, so write as its owner.
-action_send_ident() {
-    local pty owner all=() present=() p
+# Pick a present DTMF_CTRL_PTY, prompting the user when several logics expose
+# one. Echoes the chosen path on stdout; returns non-zero (after showing an
+# explanatory dialog) when none is configured/present or the user cancels.
+# $1 is the dialog title to use for any messages.
+pick_ctrl_pty() {
+    local title="$1"
+    local all=() present=() p
     mapfile -t all < <(discover_ctrl_ptys)
     if (( ${#all[@]} == 0 )); then
-        show_result "Send ident" \
+        show_result "$title" \
             "No DTMF_CTRL_PTY configured for svxlink.\n\nAdd e.g.\n  DTMF_CTRL_PTY=/tmp/RepeaterLogic.pty\nto your logic section and restart svxlink."
-        return
+        return 1
     fi
     # Note: -L (lstat) as well as -e, because the PTY is usually a symlink owned
     # by the svxlink user in /tmp; with fs.protected_symlinks set, root cannot
     # follow it, so a plain -e would wrongly report it missing.
     for p in "${all[@]}"; do [[ -e "$p" || -L "$p" ]] && present+=("$p"); done
     if (( ${#present[@]} == 0 )); then
-        show_result "Send ident" \
+        show_result "$title" \
             "DTMF_CTRL_PTY is configured but not present:\n${all[*]}\n\nIs svxlink running with the logic loaded?"
-        return
+        return 1
     fi
 
     if (( ${#present[@]} == 1 )); then
-        pty="${present[0]}"
-    else
-        # Several logics expose a PTY — let the user choose which to key.
-        local items=() i
-        for i in "${!present[@]}"; do items+=("$i" "${present[$i]}"); done
-        if [[ "$DIALOG" == "dialog" ]]; then
-            dialog --colors --no-shadow --title " Send ident " \
-                --menu "\nChoose which logic's control PTY:\n" 15 60 6 "${items[@]}" 2>"$DIALOG_OUT" || return
-        else
-            whiptail --title " Send ident " \
-                --menu "\nChoose which logic's control PTY:\n" 15 60 6 "${items[@]}" 2>"$DIALOG_OUT" || return
-        fi
-        pty="${present[$(cat "$DIALOG_OUT")]}"
-        [[ -n "$pty" ]] || return
+        printf '%s' "${present[0]}"
+        return 0
     fi
+
+    # Several logics expose a PTY — let the user choose which to use.
+    local items=() i
+    for i in "${!present[@]}"; do items+=("$i" "${present[$i]}"); done
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " $title " \
+            --menu "\nChoose which logic's control PTY:\n" 15 60 6 "${items[@]}" 2>"$DIALOG_OUT" || return 1
+    else
+        whiptail --title " $title " \
+            --menu "\nChoose which logic's control PTY:\n" 15 60 6 "${items[@]}" 2>"$DIALOG_OUT" || return 1
+    fi
+    local pty="${present[$(cat "$DIALOG_OUT")]}"
+    [[ -n "$pty" ]] || return 1
+    printf '%s' "$pty"
+}
+
+# Write a DTMF command string ($1) to a control PTY ($2). Tries a direct write
+# first — that succeeds when we already own the PTY (e.g. a root-owned PTY while
+# running as root). Only if that's denied fall back to writing as the PTY's
+# owner, since the pts is mode 600 and root cannot always write to a slave owned
+# by another user (e.g. svxlink running under its own service account).
+# 2>/dev/null comes first so a failed-redirection error (root blocked from
+# following the svxlink-owned symlink) is swallowed, not printed over the TUI.
+deliver_to_pty() {
+    local cmd="$1" pty="$2" owner
+    owner=$(stat -c %U "$pty" 2>/dev/null)
+    printf %s "$cmd" 2>/dev/null > "$pty" \
+        || { [[ -n "$owner" ]] && su -s /bin/sh "$owner" -c "printf %s '$cmd' > '$pty'" 2>/dev/null; }
+}
+
+# Make the repeater transmit by writing IDENT_CMD to a logic's DTMF_CTRL_PTY.
+action_send_ident() {
+    local pty owner
+    pty=$(pick_ctrl_pty "Send ident") || return
 
     confirm_yesno "Send ident" \
         "Send '$IDENT_CMD' to:\n$pty\n\nThis keys the transmitter ON the air." || return
 
-    # Deliver the command. Try a direct write first — that succeeds when we
-    # already own the PTY (e.g. a root-owned PTY while running as root). Only
-    # if that's denied fall back to writing as the PTY's owner, since the pts
-    # is mode 600 and root cannot always write to a slave owned by another
-    # user (e.g. svxlink running under its own service account).
-    owner=$(stat -c %U "$pty" 2>/dev/null)
-    # 2>/dev/null comes first so a failed-redirection error (root blocked from
-    # following the svxlink-owned symlink) is swallowed, not printed over the TUI.
-    if printf %s "$IDENT_CMD" 2>/dev/null > "$pty" \
-       || { [[ -n "$owner" ]] && su -s /bin/sh "$owner" -c "printf %s '$IDENT_CMD' > '$pty'" 2>/dev/null; }; then
+    if deliver_to_pty "$IDENT_CMD" "$pty"; then
         show_result "Send ident" "Sent '$IDENT_CMD' — the repeater should transmit its readback now."
     else
+        owner=$(stat -c %U "$pty" 2>/dev/null)
         show_result "Send ident" "Failed to write '$IDENT_CMD' to:\n$pty\n(owner '${owner:-unknown}'). Try running svx as root."
+    fi
+}
+
+# Select a reflector talkgroup by writing the TgSelect DTMF sequence
+# (<TG_SELECT_PREFIX><tg>#) to a logic's DTMF_CTRL_PTY.
+action_select_tg() {
+    local pty owner tg cmd
+    pty=$(pick_ctrl_pty "Select talkgroup") || return
+
+    if [[ "$DIALOG" == "dialog" ]]; then
+        dialog --colors --no-shadow --title " Select talkgroup " \
+            --inputbox "\nEnter the talkgroup number to select:\n" 10 50 2>"$DIALOG_OUT" || return
+    else
+        whiptail --title " Select talkgroup " \
+            --inputbox "\nEnter the talkgroup number to select:\n" 10 50 2>"$DIALOG_OUT" || return
+    fi
+    tg=$(cat "$DIALOG_OUT")
+    if [[ ! "$tg" =~ ^[0-9]+$ ]]; then
+        show_result "Select talkgroup" "Invalid talkgroup '$tg'.\n\nEnter digits only."
+        return
+    fi
+
+    cmd="${TG_SELECT_PREFIX}${tg}#"
+    if deliver_to_pty "$cmd" "$pty"; then
+        show_result "Select talkgroup" "Sent '$cmd' — talkgroup $tg selected."
+    else
+        owner=$(stat -c %U "$pty" 2>/dev/null)
+        show_result "Select talkgroup" "Failed to write '$cmd' to:\n$pty\n(owner '${owner:-unknown}'). Try running svx as root."
     fi
 }
 
@@ -649,6 +698,8 @@ main_menu() {
         "11" "$(printf "%-${W}s" "Alsamixer")"
         "12" "$(printf "%-${W}s" "RX level meter")"
         "13" "$(printf "%-${W}s" "Send ident (TX readback)")"
+        "─6" "$(printf "%-${W}s" "─── Reflector ──────────")"
+        "18" "$(printf "%-${W}s" "Select talkgroup")"
         "─4" "$(printf "%-${W}s" "─── Maintenance ────────")"
         "14" "$(printf "%-${W}s" "Check log rotation")"
         "─5" "$(printf "%-${W}s" "─── Boot & GPIO ────────")"
@@ -696,6 +747,7 @@ while true; do
         11) action_alsamixer ;;
         12) action_rx_meter ;;
         13) action_send_ident ;;
+        18) action_select_tg ;;
         14) action_check_logrotate ;;
         15) action_enable ;;
         16) action_disable ;;
