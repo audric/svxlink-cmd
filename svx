@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.9"
+readonly VERSION="2.1.10"
 readonly SCRIPT_NAME="Svx Admin"
 readonly REPO="audric/svxlink-cmd"
 readonly INSTALL_URL="https://raw.githubusercontent.com/${REPO}/master/install.sh"
@@ -141,15 +141,23 @@ declare -A LOG_FILES=(
 # or may not carry a .log extension. Probe those sources in order, then
 # fall back to the conventional /var/log/<svc>.
 resolve_logfile() {
-    local svc="$1" lf=""
+    local svc="$1" lf="" env_lf=""
+    # Read LOGFILE= from the service's /etc/default file (Debian package style)
+    # up front: the stock systemd unit references it as ${LOGFILE} rather than
+    # spelling out a literal path.
+    if [[ -f "${ENV_FILES[$svc]}" ]]; then
+        env_lf=$(grep -E '^[[:space:]]*LOGFILE=' "${ENV_FILES[$svc]}" \
+            | tail -n1 | sed 's/^[^=]*=//; s/^["'\'']//; s/["'\'']$//')
+    fi
     # 1. --logfile=PATH (or --logfile PATH) in the systemd unit's ExecStart
     lf=$(systemctl cat "${svc}.service" 2>/dev/null \
         | sed -n 's/.*--logfile[ =]\([^ ]*\).*/\1/p' | head -n1)
-    # 2. LOGFILE= in the service's /etc/default file (Debian package style)
-    if [[ -z "$lf" && -f "${ENV_FILES[$svc]}" ]]; then
-        lf=$(grep -E '^[[:space:]]*LOGFILE=' "${ENV_FILES[$svc]}" \
-            | tail -n1 | sed 's/^[^=]*=//; s/^["'\'']//; s/["'\'']$//')
-    fi
+    # The stock unit passes --logfile=${LOGFILE} (an unexpanded shell variable,
+    # not a real path); substitute the env file's value rather than testing for
+    # a file literally named "${LOGFILE}".
+    [[ "$lf" == *'$'* ]] && lf="$env_lf"
+    # 2. Fall back to the env file's LOGFILE
+    [[ -z "$lf" ]] && lf="$env_lf"
     # 3. Conventional default
     [[ -z "$lf" ]] && lf="${LOG_FILES[$svc]}"
     printf '%s' "$lf"
