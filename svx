@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Constants ---
-readonly VERSION="2.1.8"
+readonly VERSION="2.1.9"
 readonly SCRIPT_NAME="Svx Admin"
 readonly REPO="audric/svxlink-cmd"
 readonly INSTALL_URL="https://raw.githubusercontent.com/${REPO}/master/install.sh"
@@ -134,6 +134,26 @@ declare -A LOG_FILES=(
     [remotetrx]="/var/log/remotetrx"
     [svxreflector]="/var/log/svxreflector"
 )
+
+# Resolve the actual log file path for a service. SvxLink's log location
+# varies between installs: a custom systemd unit may pass --logfile=PATH,
+# the Debian package sets LOGFILE= in /etc/default/<svc>, and the path may
+# or may not carry a .log extension. Probe those sources in order, then
+# fall back to the conventional /var/log/<svc>.
+resolve_logfile() {
+    local svc="$1" lf=""
+    # 1. --logfile=PATH (or --logfile PATH) in the systemd unit's ExecStart
+    lf=$(systemctl cat "${svc}.service" 2>/dev/null \
+        | sed -n 's/.*--logfile[ =]\([^ ]*\).*/\1/p' | head -n1)
+    # 2. LOGFILE= in the service's /etc/default file (Debian package style)
+    if [[ -z "$lf" && -f "${ENV_FILES[$svc]}" ]]; then
+        lf=$(grep -E '^[[:space:]]*LOGFILE=' "${ENV_FILES[$svc]}" \
+            | tail -n1 | sed 's/^[^=]*=//; s/^["'\'']//; s/["'\'']$//')
+    fi
+    # 3. Conventional default
+    [[ -z "$lf" ]] && lf="${LOG_FILES[$svc]}"
+    printf '%s' "$lf"
+}
 
 readonly GPIO_CONF="/etc/svxlink/gpio.conf"
 
@@ -300,7 +320,7 @@ action_status() {
 action_logs() {
     pick_service "Follow logs for:" || return
     local svc="$PICKED_SERVICE"
-    local logfile="${LOG_FILES[$svc]}"
+    local logfile; logfile=$(resolve_logfile "$svc")
     local log_items=("journald" "$(printf "%-12s%s" "journalctl" "-u ${svc}.service")")
     if [[ -f "$logfile" ]]; then
         log_items+=("file" "$(printf "%-12s%s" "tail -f" "${logfile}")")
@@ -615,10 +635,7 @@ action_disconnect_reflector() {
 }
 
 readonly LOGROTATE_CONF="/etc/logrotate.d/svxlink"
-readonly LOGROTATE_CONTENT="/var/log/svxlink
-/var/log/remotetrx
-/var/log/svxreflector
-{
+readonly LOGROTATE_OPTS="{
     weekly
     rotate 4
     compress
@@ -629,13 +646,15 @@ readonly LOGROTATE_CONTENT="/var/log/svxlink
 }"
 
 action_check_logrotate() {
-    # Check if any file-based logs exist
-    local has_logs=false
+    # Collect the log files actually in use (paths vary by install)
+    local -a logs=()
+    local svc lf
     for svc in "${SERVICES[@]}"; do
-        [[ -f "${LOG_FILES[$svc]}" ]] && has_logs=true && break
+        lf=$(resolve_logfile "$svc")
+        [[ -f "$lf" ]] && logs+=("$lf")
     done
 
-    if [[ "$has_logs" == false ]]; then
+    if [[ ${#logs[@]} -eq 0 ]]; then
         show_result "No File Logs" "No SvxLink file-based logs found.\n\nServices are logging to journald only.\nNo log rotation needed."
         return
     fi
@@ -659,7 +678,7 @@ action_check_logrotate() {
                 --yesno "\nSvxLink is writing to log files but no\nlogrotate config was found.\n\nCreate ${LOGROTATE_CONF}?\n\nWeekly rotation, 4 copies, compressed.\n" 15 55 2>"$DIALOG_OUT"
         fi
         if [[ $? -eq 0 ]]; then
-            echo "$LOGROTATE_CONTENT" > "$LOGROTATE_CONF"
+            { printf '%s\n' "${logs[@]}"; printf '%s\n' "$LOGROTATE_OPTS"; } > "$LOGROTATE_CONF"
             chmod 644 "$LOGROTATE_CONF"
             show_result "Success" "Created ${LOGROTATE_CONF}\n\nLog rotation is now active."
         fi
